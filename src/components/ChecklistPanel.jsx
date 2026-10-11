@@ -70,6 +70,11 @@ export default function ChecklistPanel({ spot, facilities }) {
     <div className="panel-card">
       <div className="card-header-line">
         <div className="card-title">주변 안전시설 현황 (반경 {radius}m)</div>
+        {spot.year && (
+          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>
+            {spot.year}년 통계
+          </span>
+        )}
       </div>
       {facilities.message && (
         <p className="check-item-desc" style={{ marginBottom: 8, color: '#f59e0b' }}>

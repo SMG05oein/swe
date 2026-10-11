@@ -169,10 +169,17 @@ export default function MapView({
       const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
 
       const popupContent = `
-        <div style="font-size: 13px; line-height: 1.5; min-width: 190px;">
-          <div style="font-weight: 700; color: ${markerColor}; margin-bottom: 4px;">${spot.spot_nm}</div>
+        <div style="font-size: 13px; line-height: 1.5; min-width: 200px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-bottom: 4px;">
+            <div style="font-weight: 700; color: ${markerColor};">${spot.spot_nm}</div>
+            ${
+              spot.year
+                ? `<span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: 800; white-space: nowrap;">${spot.year}년</span>`
+                : ''
+            }
+          </div>
           <div>사고건수: <b>${spot.occrrnc_cnt}건</b> / 사상자: <b>${spot.caslt_cnt}명</b></div>
-          <div style="color: #94a3b8; font-size: 11px; margin-top: 4px;">반경 ${circleRadius}m 다발권역</div>
+          <div style="color: #94a3b8; font-size: 11px; margin-top: 4px;">반경 ${circleRadius}m 다발권역 ${spot.year ? `· ${spot.year}년 확정 통계` : ''}</div>
         </div>
       `;
       marker.bindPopup(popupContent);

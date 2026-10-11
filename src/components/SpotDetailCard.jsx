@@ -7,15 +7,14 @@ export default function SpotDetailCard({ spot, onOpenDetail }) {
     );
   }
 
-  const categoryTag =
-    spot.category === 'elder'
-      ? '고령 보행자'
-      : spot.category === 'violation'
-      ? spot.violation_name || '법규위반'
-      : '어린이보호구역';
+  const isElder = spot.category === 'elder';
+  const categoryTag = isElder
+    ? '노인 사고 (보행 노인)'
+    : spot.category === 'child_schoolzone'
+    ? '어린이 사고 (스쿨존)'
+    : '어린이 사고 (보행 어린이)';
 
-  const badgeClass =
-    spot.category || (spot.violation_name ? 'violation' : 'child');
+  const badgeClass = isElder ? 'elder' : 'child';
 
   const lat = parseFloat(spot.la_crd);
   const lng = parseFloat(spot.lo_crd);
@@ -29,7 +28,22 @@ export default function SpotDetailCard({ spot, onOpenDetail }) {
       <div className="panel-card">
         <div className="card-header-line">
           <div className="card-title">지점 상세 프로필</div>
-          <span className={`tag ${badgeClass}`}>{categoryTag}</span>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {spot.year && (
+              <span
+                className="tag"
+                style={{
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  fontWeight: 700,
+                }}
+              >
+                {spot.year}년 기준
+              </span>
+            )}
+            <span className={`tag ${badgeClass}`}>{categoryTag}</span>
+          </div>
         </div>
 
         <div style={{ fontSize: '15px', fontWeight: 700, marginBottom: '6px' }}>
@@ -37,6 +51,7 @@ export default function SpotDetailCard({ spot, onOpenDetail }) {
         </div>
         <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '14px' }}>
           좌표: EPSG:4326 ({!isNaN(lat) ? lat.toFixed(5) : '-'}, {!isNaN(lng) ? lng.toFixed(5) : '-'}) · 반경 {spot.radius || 300}m
+          {spot.year && ` · ${spot.year}년 확정 통계`}
         </div>
 
         <div className="stat-grid">

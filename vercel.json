@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/koroad_portal/:path*",
+      "destination": "https://apis.data.go.kr/:path*"
+    },
+    {
       "source": "/api/koroad/:path*",
       "destination": "https://opendata.koroad.or.kr/:path*"
     },
@@ -8,6 +12,5 @@
       "source": "/api/datagokr/:path*",
       "destination": "https://api.data.go.kr/:path*"
     }
-
   ]
 }

@@ -165,8 +165,16 @@ export default function DetailModal({ spot, isOpen, onClose, facilities }) {
                 반경 {radius}m
               </span>
               {spot.year && (
-                <span className="detail-badge" style={{ background: 'rgba(51, 65, 85, 0.4)', color: '#94a3b8' }}>
-                  {spot.year}년 기준
+                <span
+                  className="detail-badge"
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.2)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.4)',
+                    fontWeight: 700,
+                  }}
+                >
+                  📅 {spot.year}년 통계 기준
                 </span>
               )}
             </div>
@@ -175,6 +183,7 @@ export default function DetailModal({ spot, isOpen, onClose, facilities }) {
               <span>위도: {lat.toFixed(5)}</span>
               <span>경도: {lng.toFixed(5)}</span>
               <span>관할: {districtName}</span>
+              {spot.year && <span>공표연도: {spot.year}년</span>}
             </div>
           </div>
           <button

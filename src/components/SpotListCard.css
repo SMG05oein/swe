@@ -1,0 +1,127 @@
+.spot-card-item {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spot-card-item:hover {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(56, 189, 248, 0.5);
+  transform: translateY(-1px);
+}
+
+.spot-card-item.selected {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: var(--accent-cyan, #38bdf8);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.15);
+}
+
+.spot-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.spot-item-title-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.spot-index-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.spot-target-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+
+.spot-target-badge.badge-elder {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.spot-target-badge.badge-child {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.spot-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #f8fafc);
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.spot-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.spot-year-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  white-space: nowrap;
+}
+
+.spot-item-sub {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spot-sub-type {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.spot-sub-divider {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.spot-empty-state {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: var(--radius-sm, 8px);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}

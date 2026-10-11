@@ -1,4 +1,5 @@
 import './GNB.css';
+import { YEAR_OPTIONS } from '../api/trafficApi';
 
 export default function GNB({
   statusMsg,
@@ -6,6 +7,8 @@ export default function GNB({
   onOpenSettings,
   currentRegion = 'shinbu',
   onSelectRegion,
+  currentYear = 'ALL',
+  onSelectYear,
 }) {
   return (
     <header className="gnb-header">
@@ -28,8 +31,23 @@ export default function GNB({
             두정동
           </button>
         </div>
-      </div>
 
+        <div className="year-selector-wrap">
+          <span className="year-selector-icon">📅</span>
+          <select
+            className="year-select"
+            value={currentYear}
+            onChange={(e) => onSelectYear?.(e.target.value)}
+            aria-label="통계 기준 연도 선택"
+          >
+            {YEAR_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <div className="gnb-right">
         <div className="status-indicator">

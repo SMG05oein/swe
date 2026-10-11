@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './Main.css';
 import GNB from '../components/GNB';
 import MapView from '../components/MapView';
@@ -10,7 +10,6 @@ import {
   fetchChildAccidents,
   fetchChildGeneralAccidents,
   fetchElderAccidents,
-  fetchViolationAccidents,
 } from '../api/trafficApi';
 import { getApiKeys, saveApiKeys } from '../api/apiClient';
 import { fetchFacilities } from '../api/facilitiesApi';
@@ -19,12 +18,12 @@ import DetailModal from '../components/DetailModal';
 
 export default function Main() {
   const [currentRegion, setCurrentRegion] = useState('shinbu');
+  const [selectedYear, setSelectedYear] = useState('2023');
   const [activeTab, setActiveTab] = useState('all'); // 통합보기가 기본
 
   const [childSchoolzoneData, setChildSchoolzoneData] = useState([]);
   const [childGenData, setChildGenData] = useState([]);
   const [elderData, setElderData] = useState([]);
-  const [violationData, setViolationData] = useState([]);
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [isAccidentsLoading, setIsAccidentsLoading] = useState(true);
   const [statusMsg, setStatusMsg] = useState('실시간 데이터 불러오는 중...');
@@ -55,94 +54,27 @@ export default function Main() {
     child_schoolzone: { success: false, statusText: '확인 중' },
     child_gen: { success: false, statusText: '확인 중' },
     elder: { success: false, statusText: '확인 중' },
-    violation: { success: false, statusText: '확인 중' },
   });
 
-  const reloadData = async () => {
-    setIsAccidentsLoading(true);
-    setStatusMsg('실시간 API 데이터 불러오는 중...');
-    const currentKeys = getApiKeys();
-    setKeys(currentKeys);
-
-    const [childRes, childGenRes, elderRes, violRes] = await Promise.all([
-      fetchChildAccidents(),
-      fetchChildGeneralAccidents(),
-      fetchElderAccidents(),
-      fetchViolationAccidents(),
-    ]);
-
-    setChildSchoolzoneData(childRes.items || []);
-    setChildGenData(childGenRes.items || []);
-    setElderData(elderRes.items || []);
-    setViolationData(violRes.items || []);
-
-    setApiStatuses({
-      child_schoolzone: {
-        success: childRes.success && childRes.items?.length > 0,
-        statusText: childRes.statusText,
-        message: childRes.message,
-      },
-      child_gen: {
-        success: childGenRes.success && childGenRes.items?.length > 0,
-        statusText: childGenRes.statusText,
-        message: childGenRes.message,
-      },
-      elder: {
-        success: elderRes.success && elderRes.items?.length > 0,
-        statusText: elderRes.statusText,
-        message: elderRes.message,
-      },
-      violation: {
-        success: violRes.success && violRes.items?.length > 0,
-        statusText: violRes.statusText,
-        message: violRes.message,
-      },
-    });
-
-    const totalRealItems =
-      (childRes.items?.length || 0) +
-      (childGenRes.items?.length || 0) +
-      (elderRes.items?.length || 0) +
-      (violRes.items?.length || 0);
-
-    setIsMockMode(false);
-    setIsAccidentsLoading(false);
-    setStatusMsg(
-      totalRealItems > 0
-        ? `실시간 API 수신 완료 (${totalRealItems}건)`
-        : '실시간 API 연동 대기'
-    );
-
-    const firstSpot =
-      childRes.items?.[0] ||
-      elderRes.items?.[0] ||
-      violRes.items?.[0] ||
-      childGenRes.items?.[0] ||
-      null;
-    setSelectedSpot(firstSpot);
-  };
-
-  useEffect(() => {
-    let active = true;
-    async function init() {
+  const reloadData = useCallback(
+    async (targetYear = selectedYear, targetRegion = currentRegion) => {
       setIsAccidentsLoading(true);
       setStatusMsg('실시간 API 데이터 불러오는 중...');
       const currentKeys = getApiKeys();
-      if (!active) return;
       setKeys(currentKeys);
 
-      const [childRes, childGenRes, elderRes, violRes] = await Promise.all([
-        fetchChildAccidents(),
-        fetchChildGeneralAccidents(),
-        fetchElderAccidents(),
-        fetchViolationAccidents(),
+      const targetGuGun = targetRegion === 'dujeong' ? '133' : '131';
+
+      // 노인 사고와 어린이 사고 2대 핵심 취약계층 데이터만 수신
+      const [childRes, childGenRes, elderRes] = await Promise.all([
+        fetchChildAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
+        fetchChildGeneralAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
+        fetchElderAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
       ]);
 
-      if (!active) return;
       setChildSchoolzoneData(childRes.items || []);
       setChildGenData(childGenRes.items || []);
       setElderData(elderRes.items || []);
-      setViolationData(violRes.items || []);
 
       setApiStatuses({
         child_schoolzone: {
@@ -160,41 +92,51 @@ export default function Main() {
           statusText: elderRes.statusText,
           message: elderRes.message,
         },
-        violation: {
-          success: violRes.success && violRes.items?.length > 0,
-          statusText: violRes.statusText,
-          message: violRes.message,
-        },
       });
 
       const totalRealItems =
-        (childRes.items?.length || 0) +
-        (childGenRes.items?.length || 0) +
         (elderRes.items?.length || 0) +
-        (violRes.items?.length || 0);
+        (childRes.items?.length || 0) +
+        (childGenRes.items?.length || 0);
 
       setIsMockMode(false);
       setIsAccidentsLoading(false);
+
+      const yearLabel =
+        targetYear === 'ALL'
+          ? '2012~2025년 전체'
+          : targetYear === 'RECENT3'
+          ? '최근 3개년'
+          : `${targetYear}년`;
+
       setStatusMsg(
         totalRealItems > 0
-          ? `실시간 API 수신 완료 (${totalRealItems}건)`
+          ? `실시간 API 수신 완료 (${yearLabel} ${totalRealItems}건)`
           : '실시간 API 연동 대기'
       );
 
       const firstSpot =
-        childRes.items?.[0] ||
         elderRes.items?.[0] ||
-        violRes.items?.[0] ||
+        childRes.items?.[0] ||
         childGenRes.items?.[0] ||
         null;
       setSelectedSpot(firstSpot);
-    }
+    },
+    [selectedYear, currentRegion]
+  );
 
-    init();
+  useEffect(() => {
+    let isCancelled = false;
+    const timer = setTimeout(() => {
+      if (!isCancelled) {
+        reloadData(selectedYear, currentRegion);
+      }
+    }, 0);
     return () => {
-      active = false;
+      isCancelled = true;
+      clearTimeout(timer);
     };
-  }, []);
+  }, [selectedYear, currentRegion, reloadData]);
 
   const handleSaveKeys = (newKeys) => {
     saveApiKeys(newKeys);
@@ -203,45 +145,35 @@ export default function Main() {
     loadFacilities();
   };
 
-  // 탭에 맞는 실시간 데이터만 취합 (더미 데이터 없음)
+  // 노인 사고와 어린이 사고 2가지 유형만 취합
   const currentSpots = [];
-  if (activeTab === 'all' || activeTab === 'child_schoolzone') {
-    currentSpots.push(
-      ...childSchoolzoneData.map((d) => ({
-        ...d,
-        color: '#38bdf8',
-        label: '어린이보호구역',
-        badgeClass: 'child',
-      }))
-    );
-  }
-  if (activeTab === 'all' || activeTab === 'child_gen') {
-    currentSpots.push(
-      ...childGenData.map((d) => ({
-        ...d,
-        color: '#06b6d4',
-        label: '어린이(보행)',
-        badgeClass: 'child',
-      }))
-    );
-  }
   if (activeTab === 'all' || activeTab === 'elder') {
     currentSpots.push(
       ...elderData.map((d) => ({
         ...d,
         color: '#f59e0b',
-        label: '노인(보행)',
+        label: '노인 사고 (보행)',
         badgeClass: 'elder',
       }))
     );
   }
-  if (activeTab === 'all' || activeTab === 'violation') {
+  if (activeTab === 'all' || activeTab === 'child' || activeTab === 'child_schoolzone') {
     currentSpots.push(
-      ...violationData.map((d) => ({
+      ...childSchoolzoneData.map((d) => ({
         ...d,
-        color: '#f43f5e',
-        label: d.violation_name || '법규위반',
-        badgeClass: 'violation',
+        color: '#38bdf8',
+        label: '어린이 사고 (스쿨존)',
+        badgeClass: 'child',
+      }))
+    );
+  }
+  if (activeTab === 'all' || activeTab === 'child' || activeTab === 'child_gen') {
+    currentSpots.push(
+      ...childGenData.map((d) => ({
+        ...d,
+        color: '#06b6d4',
+        label: '어린이 사고 (보행)',
+        badgeClass: 'child',
       }))
     );
   }
@@ -259,15 +191,14 @@ export default function Main() {
     0
   );
 
+  const totalChildCount = childSchoolzoneData.length + childGenData.length;
   const currentTabStatus =
-    activeTab === 'child_schoolzone'
-      ? apiStatuses.child_schoolzone
-      : activeTab === 'child_gen'
-      ? apiStatuses.child_gen
-      : activeTab === 'elder'
+    activeTab === 'elder'
       ? apiStatuses.elder
-      : activeTab === 'violation'
-      ? apiStatuses.violation
+      : activeTab === 'child'
+      ? (apiStatuses.child_schoolzone.success || apiStatuses.child_gen.success
+          ? { success: true, statusText: '수신완료' }
+          : { success: false, statusText: '데이터없음' })
       : null;
 
   return (
@@ -278,6 +209,8 @@ export default function Main() {
         onOpenSettings={() => setShowSettings(true)}
         currentRegion={currentRegion}
         onSelectRegion={setCurrentRegion}
+        currentYear={selectedYear}
+        onSelectYear={(yr) => setSelectedYear(yr)}
       />
 
       <section className="control-bar">
@@ -286,57 +219,13 @@ export default function Main() {
             className={`mode-tab ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => setActiveTab('all')}
           >
-            통합보기
-          </button>
-          <button
-            className={`mode-tab ${
-              activeTab === 'child_schoolzone' ? 'active' : ''
-            }`}
-            onClick={() => setActiveTab('child_schoolzone')}
-          >
-            어린이 보호구역 사고 ({childSchoolzoneData.length})
-            <span
-              className={`tab-status ${
-                isAccidentsLoading
-                  ? 'loading'
-                  : apiStatuses.child_schoolzone.success
-                  ? 'live'
-                  : 'mock'
-              }`}
-            >
-              {isAccidentsLoading
-                ? '불러오는 중...'
-                : apiStatuses.child_schoolzone.success
-                ? '수신완료'
-                : '확인'}
-            </span>
-          </button>
-          <button
-            className={`mode-tab ${activeTab === 'child_gen' ? 'active' : ''}`}
-            onClick={() => setActiveTab('child_gen')}
-          >
-            어린이 교통사고 ({childGenData.length})
-            <span
-              className={`tab-status ${
-                isAccidentsLoading
-                  ? 'loading'
-                  : apiStatuses.child_gen.success
-                  ? 'live'
-                  : 'mock'
-              }`}
-            >
-              {isAccidentsLoading
-                ? '불러오는 중...'
-                : apiStatuses.child_gen.success
-                ? '수신완료'
-                : '데이터없음'}
-            </span>
+            통합보기 ({elderData.length + totalChildCount})
           </button>
           <button
             className={`mode-tab ${activeTab === 'elder' ? 'active' : ''}`}
             onClick={() => setActiveTab('elder')}
           >
-            노인 교통사고 ({elderData.length})
+            노인 사고 ({elderData.length})
             <span
               className={`tab-status ${
                 isAccidentsLoading
@@ -350,35 +239,45 @@ export default function Main() {
                 ? '불러오는 중...'
                 : apiStatuses.elder.success
                 ? '수신완료'
-                : '확인'}
+                : '데이터없음'}
             </span>
           </button>
           <button
-            className={`mode-tab ${activeTab === 'violation' ? 'active' : ''}`}
-            onClick={() => setActiveTab('violation')}
+            className={`mode-tab ${activeTab === 'child' ? 'active' : ''}`}
+            onClick={() => setActiveTab('child')}
           >
-            법규위반 다발지 ({violationData.length})
+            어린이 사고 ({totalChildCount})
             <span
               className={`tab-status ${
                 isAccidentsLoading
                   ? 'loading'
-                  : apiStatuses.violation.success
+                  : apiStatuses.child_schoolzone.success || apiStatuses.child_gen.success
                   ? 'live'
                   : 'mock'
               }`}
             >
               {isAccidentsLoading
                 ? '불러오는 중...'
-                : apiStatuses.violation.success
+                : apiStatuses.child_schoolzone.success || apiStatuses.child_gen.success
                 ? '수신완료'
-                : '확인'}
+                : '데이터없음'}
             </span>
           </button>
         </div>
 
         <div className="kpi-row">
+          <div className="kpi-badge" style={{ borderColor: 'rgba(56, 189, 248, 0.4)' }}>
+            통계 기준{' '}
+            <span className="kpi-value" style={{ color: '#38bdf8' }}>
+              {selectedYear === 'ALL'
+                ? '2012~2025년 통합'
+                : selectedYear === 'RECENT3'
+                ? '최근 3개년'
+                : `${selectedYear}년`}
+            </span>
+          </div>
           <div className="kpi-badge">
-            실시간 다발지{' '}
+            다발지점{' '}
             <span className="kpi-value">
               {isAccidentsLoading ? '불러오는 중...' : `${currentSpots.length}곳`}
             </span>
