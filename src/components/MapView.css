@@ -72,27 +72,9 @@
     flex-shrink: 0;
   }
 
+  /* 모바일 화면에서 권역별 기준 범례 숨김 */
   .map-legend {
-    bottom: 12px;
-    left: 12px;
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    max-width: calc(100% - 24px);
-  }
-
-  .legend-title {
-    font-size: 11px;
-    margin-bottom: 6px;
-  }
-
-  .legend-items {
-    font-size: 11px;
-    gap: 4px;
-  }
-
-  .legend-color {
-    width: 10px;
-    height: 10px;
+    display: none;
   }
 }
 
@@ -102,11 +84,6 @@
     height: 320px;
     min-height: 280px;
   }
-
-  .map-legend {
-    bottom: 8px;
-    left: 8px;
-    padding: 8px 10px;
-  }
 }
+
 
