@@ -57,7 +57,8 @@ npm run dev
 | 프록시 경로 | 대상 원격 서버 |
 | --- | --- |
 | `/api/koroad/*` | `https://opendata.koroad.or.kr` |
-| `/api/datagokr/*` | `https://apis.data.go.kr` |
+| `/api/datagokr/*` | `https://api.data.go.kr` |
+
 
 - **로컬 개발 환경**: `vite.config.js`의 `server.proxy` 설정 활용
 - **프로덕션 배포 환경**: `vercel.json`의 `rewrites` 설정 활용

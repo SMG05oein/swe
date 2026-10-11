@@ -6,7 +6,8 @@
     },
     {
       "source": "/api/datagokr/:path*",
-      "destination": "https://apis.data.go.kr/:path*"
+      "destination": "https://api.data.go.kr/:path*"
     }
+
   ]
 }
