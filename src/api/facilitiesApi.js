@@ -58,28 +58,92 @@ function toPoints(items) {
     .filter((p) => !isNaN(p.lat) && !isNaN(p.lng));
 }
 
-// 천안시 CCTV / 과속방지턱 전체 로드 (실시간 API, 더미 없음)
+// 전국어린이보호구역표준데이터 (천안시 4490000)
+export async function fetchChildProtectionZones() {
+  const { dataGoKrKey } = getApiKeys();
+  if (!dataGoKrKey) {
+    return { success: false, items: [], message: '인증키 미설정' };
+  }
+
+  try {
+    const url =
+      `/api/datagokr/openapi/tn_pubr_public_child_prtc_zn_api?serviceKey=${formatAuthKey(dataGoKrKey)}` +
+      `&pageNo=1&numOfRows=300&type=json&insttCode=${CHEONAN_ORG_CD}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const items = json?.body?.items?.item || [];
+    const list = Array.isArray(items) ? items : items ? [items] : [];
+
+    const mapped = list
+      .map((item) => ({
+        name: item.trgetFcltyNm,
+        kind: item.fcltyKnd,
+        roadAddr: item.rdnmadr,
+        lotAddr: item.lnmadr,
+        lat: parseFloat(item.latitude),
+        lng: parseFloat(item.longitude),
+        cctvYn: item.cctvYn === 'Y',
+        cctvCount: parseInt(item.cctvNumber, 10) || 0,
+        roadWidth: item.prtcareaRw || '',
+        policeStation: item.cmptncPolcsttnNm || '',
+      }))
+      .filter((p) => !isNaN(p.lat) && !isNaN(p.lng));
+
+    return {
+      success: true,
+      items: mapped,
+      totalCount: mapped.length,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      items: [],
+      message: error.message,
+    };
+  }
+}
+
+// 천안시 CCTV / 과속방지턱 / 어린이보호구역 로드 (실시간 OpenAPI)
 export async function fetchFacilities() {
   const { dataGoKrKey } = getApiKeys();
   if (!dataGoKrKey) {
-    return { success: false, message: '공공데이터포털 인증키가 설정되지 않았습니다.', cctv: [], speedBump: [] };
+    return {
+      success: false,
+      message: '공공데이터포털 인증키가 설정되지 않았습니다.',
+      cctv: [],
+      speedBump: [],
+      protectionZones: [],
+    };
   }
-  const [cctvRes, bumpRes] = await Promise.allSettled([
+  const [cctvRes, bumpRes, zoneRes] = await Promise.allSettled([
     fetchAll(ENDPOINTS.cctv, dataGoKrKey),
     fetchAll(ENDPOINTS.speedBump, dataGoKrKey),
+    fetchChildProtectionZones(),
   ]);
+
   const errors = [];
   if (cctvRes.status === 'rejected') errors.push(`CCTV: ${cctvRes.reason.message}`);
   if (bumpRes.status === 'rejected') errors.push(`과속방지턱: ${bumpRes.reason.message}`);
+  if (zoneRes.status === 'rejected' || (zoneRes.status === 'fulfilled' && !zoneRes.value.success)) {
+    errors.push(`어린이보호구역: ${zoneRes.value?.message || zoneRes.reason?.message}`);
+  }
+
+  const protectionItems =
+    zoneRes.status === 'fulfilled' && zoneRes.value.success
+      ? zoneRes.value.items
+      : [];
+
   return {
     success: errors.length === 0,
     message: errors.join(' / '),
     cctv: cctvRes.status === 'fulfilled' ? toPoints(cctvRes.value) : null,
     speedBump: bumpRes.status === 'fulfilled' ? toPoints(bumpRes.value) : null,
+    protectionZones: protectionItems,
   };
 }
 
-function distanceM(lat1, lng1, lat2, lng2) {
+export function distanceM(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const rad = (d) => (d * Math.PI) / 180;
   const a =
@@ -97,3 +161,16 @@ export function countWithin(points, lat, lng, radius) {
   }
   return n;
 }
+
+// 지점 반경 내 어린이보호구역 목록 추출
+export function findProtectionZonesWithin(zones, lat, lng, radius) {
+  if (!zones || !Array.isArray(zones)) return [];
+  return zones
+    .map((z) => ({
+      ...z,
+      distance: Math.round(distanceM(lat, lng, z.lat, z.lng)),
+    }))
+    .filter((z) => z.distance <= radius)
+    .sort((a, b) => a.distance - b.distance);
+}
+

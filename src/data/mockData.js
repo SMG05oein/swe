@@ -1,11 +1,26 @@
 // 한국도로교통공단(KoROAD) 및 공공데이터포털 실물 다운로드 검증 기반 천안시 신부동 표본 데이터
 
-export const CHEONAN_CENTER = {
-  lat: 36.8228,
-  lng: 127.1555,
-  zoom: 15,
-  name: "충남 천안시 동남구 신부동 일대",
+export const REGION_PRESETS = {
+  shinbu: {
+    id: 'shinbu',
+    name: '천안시 신부동 집중 구역',
+    shortName: '신부동',
+    lat: 36.8228,
+    lng: 127.1555,
+    zoom: 15,
+  },
+  dujeong: {
+    id: 'dujeong',
+    name: '천안시 두정동 집중 구역',
+    shortName: '두정동',
+    lat: 36.8335,
+    lng: 127.1385,
+    zoom: 15,
+  },
 };
+
+export const CHEONAN_CENTER = REGION_PRESETS.shinbu;
+
 
 // 1. 어린이보호구역내 어린이 교통사고 다발지역 (반경 300m)
 export const MOCK_CHILD_ACCIDENTS = [

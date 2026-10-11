@@ -14,9 +14,12 @@ import {
 import { getApiKeys, saveApiKeys } from '../api/apiClient';
 import { fetchFacilities } from '../api/facilitiesApi';
 import ChecklistPanel from '../components/ChecklistPanel';
+import { REGION_PRESETS } from '../data/mockData';
 
 export default function Main() {
+  const [currentRegion, setCurrentRegion] = useState('shinbu');
   const [activeTab, setActiveTab] = useState('all'); // 통합보기가 기본
+
   const [childSchoolzoneData, setChildSchoolzoneData] = useState([]);
   const [childGenData, setChildGenData] = useState([]);
   const [elderData, setElderData] = useState([]);
@@ -264,6 +267,8 @@ export default function Main() {
         statusMsg={statusMsg}
         isMockMode={isMockMode}
         onOpenSettings={() => setShowSettings(true)}
+        currentRegion={currentRegion}
+        onSelectRegion={setCurrentRegion}
       />
 
       <section className="control-bar">
@@ -335,6 +340,12 @@ export default function Main() {
             실시간 다발지 <span className="kpi-value">{currentSpots.length}곳</span>
           </div>
           <div className="kpi-badge">
+            보호구역 취약지{' '}
+            <span className="kpi-value" style={{ color: '#10b981' }}>
+              {(facilities.protectionZones || []).length}개소
+            </span>
+          </div>
+          <div className="kpi-badge">
             총 사고 <span className="kpi-value">{totalAccidents}건</span>
           </div>
           <div className="kpi-badge">
@@ -354,7 +365,11 @@ export default function Main() {
           spots={currentSpots}
           selectedSpot={selectedSpot}
           onSelectSpot={setSelectedSpot}
+          protectionZones={facilities.protectionZones || []}
+          currentRegion={currentRegion}
+          regionPresets={REGION_PRESETS}
         />
+
 
         <aside className="detail-panel">
           {currentSpots.length === 0 ? (

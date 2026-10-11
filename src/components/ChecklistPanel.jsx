@@ -1,4 +1,4 @@
-import { countWithin } from '../api/facilitiesApi';
+import { countWithin, findProtectionZonesWithin } from '../api/facilitiesApi';
 
 function Row({ title, desc, ok, okText, badText }) {
   return (
@@ -34,6 +34,14 @@ export default function ChecklistPanel({ spot, facilities }) {
 
   const cctv = countWithin(facilities.cctv, lat, lng, radius);
   const bump = countWithin(facilities.speedBump, lat, lng, radius);
+  const nearbyZones = findProtectionZonesWithin(
+    facilities.protectionZones,
+    lat,
+    lng,
+    radius
+  );
+  const hasZone = nearbyZones.length > 0;
+  const zoneCctvCount = nearbyZones.reduce((acc, z) => acc + z.cctvCount, 0);
 
   return (
     <div className="panel-card">
@@ -64,16 +72,19 @@ export default function ChecklistPanel({ spot, facilities }) {
             badText="미등록"
           />
         )}
-        <div className="check-item">
-          <div className="check-item-info">
-            <div className="check-item-title">신호등 · 보호구역 기준</div>
-            <div className="check-item-desc">
-              API 미연동 (신호등 데이터 없음 / 경찰청 보호구역 승인 대기)
-            </div>
-          </div>
-          <span className="badge-status warning">대기</span>
-        </div>
+        <Row
+          title="어린이보호구역 (행안부 전국어린이보호구역표준데이터)"
+          desc={
+            hasZone
+              ? `${nearbyZones.map((z) => `${z.name}(${z.distance}m)`).slice(0, 2).join(', ')} 등 ${nearbyZones.length}개소 지정 (전용 CCTV ${zoneCctvCount}대)`
+              : '반경 내 공공데이터포털 등록 어린이보호구역 없음'
+          }
+          ok={hasZone}
+          okText="보호구역 지정"
+          badText="보호구역 미지정"
+        />
       </div>
     </div>
   );
 }
+

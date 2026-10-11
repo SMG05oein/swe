@@ -1,65 +1,67 @@
-# SWE (Smart Traffic Safety Intelligence Dashboard)
+# 스마트 교통약자 안전 인텔리전스 대시보드 (SWE)
 
-React + Vite based traffic safety information web application utilizing Open Data Portal (data.go.kr) and KoROAD (opendata.koroad.or.kr) public APIs to visualize accident clusters and surrounding safety facilities in Cheonan-si.
+React 19와 Vite 기반의 교통약자 안전 정보 웹 애플리케이션입니다. 공공데이터포털(data.go.kr)과 도로교통공단(opendata.koroad.or.kr) 실시간 OpenAPI를 활용하여 천안시 신부동 및 두정동 일대의 사고다발지역과 어린이보호구역 취약지역, 안전시설물 현황을 한눈에 시각화합니다.
 
-## Tech Stack
+## 기술 스택
 
-- **Frontend**: React 19, Leaflet (OpenStreetMap)
-- **Tooling**: Vite 8, ESLint
-- **Deployment**: Vercel (API Rewrites / Serverless Proxy)
+- **프론트엔드**: React 19, Leaflet (OpenStreetMap)
+- **도구 및 환경**: Vite 8, ESLint
+- **배포 환경**: Vercel (API 리라이트 및 서버리스 프록시)
 
-## Key Features
+## 주요 기능
 
-- **Accident Cluster Analysis**: Displays child protection zones, elderly pedestrian accidents, and traffic law violation clusters.
-- **Interactive Map View**: Dark-themed Leaflet map with cluster markers, radius circles, and detailed popups.
-- **Safety Facilities Checklist**: Integrates CCTV and speed bump data within cluster radius.
-- **Responsive Layout**: Tailored UI supporting desktop, tablet, and mobile screen sizes.
+- **사고다발지역 분석**: 어린이 보호구역 사고, 어린이 일반 교통사고, 보행 노인 사고, 법규위반 다발지 실시간 분석
+- **어린이보호구역 표준데이터 연동**: 행정안전부 전국어린이보호구역표준데이터 실시간 연동을 통한 취약구역 시각화 (천안시 214개소)
+- **신부동 / 두정동 권역 전환**: 상단 헤더의 원클릭 권역 전환 버튼을 통한 지역별 지도 부드러운 이동(FlyTo) 및 집중 분석
+- **인터랙티브 다크 지도**: 다크 테마 커스텀 Leaflet 지도, 권역별 반경 서클(100m~300m), 인터랙티브 마커 및 상세 팝업
+- **주변 안전시설 취약도 체크리스트**: 다발지점 반경 내 CCTV 대수, 과속방지턱, 어린이보호구역 지정 여부 실시간 매칭
+- **완전 반응형 레이아웃**: 데스크톱, 태블릿, 모바일, 초소형 화면 전 구간 최적화
 
-## Responsive Design Breakpoints
+## 반응형 레이아웃 기준
 
-- **Desktop (> 1024px)**: 2-column split view (interactive map + detail panel), full control bar with KPI metrics.
-- **Tablet (<= 1024px)**: Compact 2-column layout, scrollable tab navigation, responsive status indicators.
-- **Mobile (<= 768px)**: Vertical stack layout (dedicated map view + scrollable detail panel), 2x2 grid KPI cards, touch-optimized dialogs.
-- **Compact Mobile (<= 480px)**: Compact header typography, optimized map height (320px), streamlined padding.
+- **데스크톱 (1025px 이상)**: 좌우 2분할 뷰(인터랙티브 지도 + 상세 패널), 상단 제어 바 및 통계 지표 전체 표시
+- **태블릿 (769px ~ 1024px)**: 컴팩트 2열 레이아웃, 가로 스크롤 탭 메뉴, 반응형 상태 인디케이터
+- **모바일 (481px ~ 768px)**: 상하 스택 구조(380px 높이 지도 + 하단 스크롤 상세 패널), 2x2 통계 배지, 깔끔한 지도 뷰를 위해 모바일 범례 숨김 처리
+- **초소형 모바일 (480px 이하)**: 320px 지도 높이, 터치 친화적 여백, 폰트 및 패딩 자동 조절
 
-## Getting Started
+## 시작하기
 
 ```bash
 npm install
-cp .env.example .env   # Fill in your API keys
+cp .env.example .env   # 발급받은 인증키를 입력하세요
 npm run dev
 ```
 
-## Environment Variables
+## 환경 변수 설정
 
-| Variable | Description |
+| 변수명 | 설명 |
 | --- | --- |
-| `VITE_KOROAD_AUTH_KEY` | KoROAD Traffic Accident Information System Auth Key |
-| `VITE_DATA_GO_KR_API_KEY` | Public Data Portal (data.go.kr) Service Key |
+| `VITE_KOROAD_AUTH_KEY` | 도로교통공단 교통사고정보개방시스템 인증키 |
+| `VITE_DATA_GO_KR_API_KEY` | 공공데이터포털 디코딩/인코딩 인증키 |
 
-Do not commit `.env`.
+`.env` 파일은 보안상 절대 깃 저장소에 커밋하지 마세요.
 
-## Scripts
+## 주요 실행 명령어
 
-| Command | Description |
+| 명령어 | 설명 |
 | --- | --- |
-| `npm run dev` | Start development server |
-| `npm run build` | Production build (`dist/`) |
-| `npm run preview` | Preview production build |
-| `npm run lint` | Run ESLint |
+| `npm run dev` | 로컬 개발 서버 실행 |
+| `npm run build` | 프로덕션 번들 빌드 (`dist/`) |
+| `npm run preview` | 빌드 결과물 로컬 미리보기 |
+| `npm run lint` | ESLint 코드 스타일 및 문법 검사 |
 
-## API Proxy Configuration
+## API 프록시 설정 안내
 
-CORS issues are addressed via `/api` proxies.
+브라우저 CORS 제약을 방지하기 위해 `/api` 경로를 프록시로 우회합니다.
 
-| Route | Target |
+| 프록시 경로 | 대상 원격 서버 |
 | --- | --- |
 | `/api/koroad/*` | `https://opendata.koroad.or.kr` |
 | `/api/datagokr/*` | `https://apis.data.go.kr` |
 
-- **Development**: Handled by `vite.config.js` (`server.proxy`)
-- **Production (Vercel)**: Handled by `vercel.json` (`rewrites`)
+- **로컬 개발 환경**: `vite.config.js`의 `server.proxy` 설정 활용
+- **프로덕션 배포 환경**: `vercel.json`의 `rewrites` 설정 활용
 
-## Deployment (Vercel)
+## Vercel 배포 시 유의사항
 
-Connect the GitHub repository directly to Vercel. Deploying via GitHub ensures `vercel.json` is automatically included and proxy rewrite rules work as intended.
+GitHub 저장소를 Vercel 프로젝트에 직접 연동하여 배포해야 `vercel.json`의 리라이트 규칙이 정상 적용되어 실시간 API가 404 없이 작동합니다.
