@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import './Main.css';
 import GNB from '../components/GNB';
 import MapView from '../components/MapView';
+import { REGION_PRESETS } from '../data/regions';
 import SpotDetailCard from '../components/SpotDetailCard';
 import SpotListCard from '../components/SpotListCard';
 import ApiKeyModal from '../components/ApiKeyModal';
@@ -14,7 +15,7 @@ import {
 import { getApiKeys, saveApiKeys } from '../api/apiClient';
 import { fetchFacilities } from '../api/facilitiesApi';
 import ChecklistPanel from '../components/ChecklistPanel';
-import { REGION_PRESETS } from '../data/mockData';
+import DetailModal from '../components/DetailModal';
 
 export default function Main() {
   const [currentRegion, setCurrentRegion] = useState('shinbu');
@@ -25,9 +26,11 @@ export default function Main() {
   const [elderData, setElderData] = useState([]);
   const [violationData, setViolationData] = useState([]);
   const [selectedSpot, setSelectedSpot] = useState(null);
-  const [statusMsg, setStatusMsg] = useState('실시간 API 조회 중...');
+  const [isAccidentsLoading, setIsAccidentsLoading] = useState(true);
+  const [statusMsg, setStatusMsg] = useState('실시간 데이터 불러오는 중...');
   const [isMockMode, setIsMockMode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [keys, setKeys] = useState({ koroadKey: '', dataGoKrKey: '' });
   const [facilities, setFacilities] = useState({ loading: true });
 
@@ -56,6 +59,8 @@ export default function Main() {
   });
 
   const reloadData = async () => {
+    setIsAccidentsLoading(true);
+    setStatusMsg('실시간 API 데이터 불러오는 중...');
     const currentKeys = getApiKeys();
     setKeys(currentKeys);
 
@@ -101,6 +106,7 @@ export default function Main() {
       (violRes.items?.length || 0);
 
     setIsMockMode(false);
+    setIsAccidentsLoading(false);
     setStatusMsg(
       totalRealItems > 0
         ? `실시간 API 수신 완료 (${totalRealItems}건)`
@@ -119,6 +125,8 @@ export default function Main() {
   useEffect(() => {
     let active = true;
     async function init() {
+      setIsAccidentsLoading(true);
+      setStatusMsg('실시간 API 데이터 불러오는 중...');
       const currentKeys = getApiKeys();
       if (!active) return;
       setKeys(currentKeys);
@@ -166,6 +174,7 @@ export default function Main() {
         (violRes.items?.length || 0);
 
       setIsMockMode(false);
+      setIsAccidentsLoading(false);
       setStatusMsg(
         totalRealItems > 0
           ? `실시간 API 수신 완료 (${totalRealItems}건)`
@@ -288,10 +297,18 @@ export default function Main() {
             어린이 보호구역 사고 ({childSchoolzoneData.length})
             <span
               className={`tab-status ${
-                apiStatuses.child_schoolzone.success ? 'live' : 'mock'
+                isAccidentsLoading
+                  ? 'loading'
+                  : apiStatuses.child_schoolzone.success
+                  ? 'live'
+                  : 'mock'
               }`}
             >
-              {apiStatuses.child_schoolzone.success ? '수신완료' : '확인'}
+              {isAccidentsLoading
+                ? '불러오는 중...'
+                : apiStatuses.child_schoolzone.success
+                ? '수신완료'
+                : '확인'}
             </span>
           </button>
           <button
@@ -301,10 +318,18 @@ export default function Main() {
             어린이 교통사고 ({childGenData.length})
             <span
               className={`tab-status ${
-                apiStatuses.child_gen.success ? 'live' : 'mock'
+                isAccidentsLoading
+                  ? 'loading'
+                  : apiStatuses.child_gen.success
+                  ? 'live'
+                  : 'mock'
               }`}
             >
-              {apiStatuses.child_gen.success ? '수신완료' : '데이터없음'}
+              {isAccidentsLoading
+                ? '불러오는 중...'
+                : apiStatuses.child_gen.success
+                ? '수신완료'
+                : '데이터없음'}
             </span>
           </button>
           <button
@@ -314,10 +339,18 @@ export default function Main() {
             노인 교통사고 ({elderData.length})
             <span
               className={`tab-status ${
-                apiStatuses.elder.success ? 'live' : 'mock'
+                isAccidentsLoading
+                  ? 'loading'
+                  : apiStatuses.elder.success
+                  ? 'live'
+                  : 'mock'
               }`}
             >
-              {apiStatuses.elder.success ? '수신완료' : '확인'}
+              {isAccidentsLoading
+                ? '불러오는 중...'
+                : apiStatuses.elder.success
+                ? '수신완료'
+                : '확인'}
             </span>
           </button>
           <button
@@ -327,34 +360,54 @@ export default function Main() {
             법규위반 다발지 ({violationData.length})
             <span
               className={`tab-status ${
-                apiStatuses.violation.success ? 'live' : 'mock'
+                isAccidentsLoading
+                  ? 'loading'
+                  : apiStatuses.violation.success
+                  ? 'live'
+                  : 'mock'
               }`}
             >
-              {apiStatuses.violation.success ? '수신완료' : '확인'}
+              {isAccidentsLoading
+                ? '불러오는 중...'
+                : apiStatuses.violation.success
+                ? '수신완료'
+                : '확인'}
             </span>
           </button>
         </div>
 
         <div className="kpi-row">
           <div className="kpi-badge">
-            실시간 다발지 <span className="kpi-value">{currentSpots.length}곳</span>
-          </div>
-          <div className="kpi-badge">
-            보호구역 취약지{' '}
-            <span className="kpi-value" style={{ color: '#10b981' }}>
-              {(facilities.protectionZones || []).length}개소
+            실시간 다발지{' '}
+            <span className="kpi-value">
+              {isAccidentsLoading ? '불러오는 중...' : `${currentSpots.length}곳`}
             </span>
           </div>
           <div className="kpi-badge">
-            총 사고 <span className="kpi-value">{totalAccidents}건</span>
+            보호구역 (스쿨+실버){' '}
+            <span className="kpi-value" style={{ color: '#10b981' }}>
+              {facilities.loading
+                ? '불러오는 중...'
+                : `${(facilities.protectionZones || []).length +
+                    (facilities.elderProtectionZones || []).length}개소`}
+            </span>
           </div>
           <div className="kpi-badge">
-            총 사상자 <span className="kpi-value">{totalCasualties}명</span>
+            총 사고{' '}
+            <span className="kpi-value">
+              {isAccidentsLoading ? '불러오는 중...' : `${totalAccidents}건`}
+            </span>
+          </div>
+          <div className="kpi-badge">
+            총 사상자{' '}
+            <span className="kpi-value">
+              {isAccidentsLoading ? '불러오는 중...' : `${totalCasualties}명`}
+            </span>
           </div>
           <div className="kpi-badge">
             사망자{' '}
             <span className="kpi-value" style={{ color: '#f43f5e' }}>
-              {totalDeaths}명
+              {isAccidentsLoading ? '불러오는 중...' : `${totalDeaths}명`}
             </span>
           </div>
         </div>
@@ -365,9 +418,16 @@ export default function Main() {
           spots={currentSpots}
           selectedSpot={selectedSpot}
           onSelectSpot={setSelectedSpot}
-          protectionZones={facilities.protectionZones || []}
+          protectionZones={[
+            ...(facilities.protectionZones || []),
+            ...(facilities.elderProtectionZones || []),
+          ]}
           currentRegion={currentRegion}
           regionPresets={REGION_PRESETS}
+          onOpenDetail={(spot) => {
+            setSelectedSpot(spot);
+            setShowDetailModal(true);
+          }}
         />
 
 
@@ -378,20 +438,25 @@ export default function Main() {
                 style={{
                   fontSize: '14px',
                   fontWeight: 700,
-                  color: '#f59e0b',
+                  color: isAccidentsLoading ? '#38bdf8' : '#f59e0b',
                   marginBottom: '8px',
                 }}
               >
-                API 데이터가 없습니다
+                {isAccidentsLoading ? '데이터 불러오는 중...' : 'API 데이터가 없습니다'}
               </div>
               <p style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6' }}>
-                {currentTabStatus?.message ||
-                  '해당 카테고리의 2023년 천안시 동남구 실시간 공공데이터가 없거나 조회 조건과 일치하지 않습니다.'}
+                {isAccidentsLoading
+                  ? '실시간 교통사고 및 시설물 데이터를 불러오는 중입니다. 잠시만 기다려 주세요.'
+                  : currentTabStatus?.message ||
+                    '해당 카테고리의 2023년 천안시 동남구 실시간 공공데이터가 없거나 조회 조건과 일치하지 않습니다.'}
               </p>
             </div>
           ) : (
             <>
-              <SpotDetailCard spot={selectedSpot} />
+              <SpotDetailCard
+                spot={selectedSpot}
+                onOpenDetail={() => setShowDetailModal(true)}
+              />
               <ChecklistPanel spot={selectedSpot} facilities={facilities} />
               <SpotListCard
                 spots={currentSpots}
@@ -402,6 +467,13 @@ export default function Main() {
           )}
         </aside>
       </main>
+
+      <DetailModal
+        spot={selectedSpot}
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        facilities={facilities}
+      />
 
       <ApiKeyModal
         isOpen={showSettings}

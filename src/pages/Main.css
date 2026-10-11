@@ -66,6 +66,12 @@
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
+.tab-status.loading {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
 
 .kpi-row {
   display: flex;

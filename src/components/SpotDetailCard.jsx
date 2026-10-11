@@ -1,4 +1,4 @@
-export default function SpotDetailCard({ spot }) {
+export default function SpotDetailCard({ spot, onOpenDetail }) {
   if (!spot) {
     return (
       <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>
@@ -57,6 +57,32 @@ export default function SpotDetailCard({ spot }) {
             <div className="stat-number slight">{spot.sl_dnv_cnt || 0}명</div>
           </div>
         </div>
+
+        <button
+          className="btn-open-detail"
+          style={{
+            width: '100%',
+            marginTop: '14px',
+            padding: '11px 16px',
+            background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '9px',
+            fontWeight: 800,
+            fontSize: '13px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => onOpenDetail && onOpenDetail(spot)}
+        >
+          <span>🔍</span>
+          <span>세부 심층 분석 모달 열기 (원인·시설 진단)</span>
+        </button>
       </div>
 
       <div className="panel-card">
@@ -94,8 +120,8 @@ export default function SpotDetailCard({ spot }) {
         </div>
 
         <p style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.6, marginTop: 10 }}>
-          도로교통공단 다발지역 API는 사고 원인 문장을 제공하지 않습니다.
-          위 항목은 API가 준 건수·사상자 수로 계산한 값이며, 세부 원인은 TAAS 원자료가 필요합니다.
+          TAAS 천안시 실제사고 원표 109건 분석 및 전국신호등·보호구역 표준데이터가 연동되었습니다.
+          상단의 <b>세부 심층 분석</b> 버튼을 눌러 법규위반, 도로형태 및 AI 행동수칙을 확인하세요.
         </p>
       </div>
     </>

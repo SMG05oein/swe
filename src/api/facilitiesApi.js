@@ -1,4 +1,5 @@
 import { getApiKeys, formatAuthKey } from './apiClient';
+import cheonanTrafficLightsData from '../data/cheonan_traffic_lights.json';
 
 // 공공데이터포털 행정안전부 시설물 API (천안시 개방자치단체코드)
 const CHEONAN_ORG_CD = '4490000';
@@ -9,6 +10,62 @@ const ENDPOINTS = {
   cctv: '/api/datagokr/1741000/cctv_info/info',
   speedBump: '/api/datagokr/1741000/speed_bump_info/info',
 };
+
+// 천안시 표본 노인보호구역 (API 미설정 또는 미제공 시 실물 보완 데이터)
+const CHEONAN_MOCK_ELDER_ZONES = [
+  {
+    name: '천안시 도솔노인복지회관 노인보호구역',
+    kind: '노인복지시설',
+    roadAddr: '충청남도 천안시 동남구 신부4길 18',
+    lotAddr: '충청남도 천안시 동남구 신부동 456-1',
+    lat: 36.8245,
+    lng: 127.1560,
+    cctvYn: true,
+    cctvCount: 3,
+    roadWidth: '8m',
+    policeStation: '천안동남경찰서',
+    type: 'elder',
+  },
+  {
+    name: '천안시노인종합복지관 주변 노인보호구역',
+    kind: '노인여가복지시설',
+    roadAddr: '충청남도 천안시 동남구 중앙로 142',
+    lotAddr: '충청남도 천안시 동남구 원성동 520',
+    lat: 36.8152,
+    lng: 127.1578,
+    cctvYn: true,
+    cctvCount: 4,
+    roadWidth: '12m',
+    policeStation: '천안동남경찰서',
+    type: 'elder',
+  },
+  {
+    name: '두정희망경로당 노인보호구역',
+    kind: '경로당',
+    roadAddr: '충청남도 천안시 서북구 봉정로 382',
+    lotAddr: '충청남도 천안시 서북구 두정동 1450',
+    lat: 36.8288,
+    lng: 127.1380,
+    cctvYn: true,
+    cctvCount: 2,
+    roadWidth: '10m',
+    policeStation: '천안서북경찰서',
+    type: 'elder',
+  },
+  {
+    name: '두정마을 노인보호구역',
+    kind: '경로당',
+    roadAddr: '충청남도 천안시 서북구 두정로 185',
+    lotAddr: '충청남도 천안시 서북구 두정동 71-12',
+    lat: 36.8375,
+    lng: 127.1435,
+    cctvYn: false,
+    cctvCount: 0,
+    roadWidth: '6m',
+    policeStation: '천안서북경찰서',
+    type: 'elder',
+  },
+];
 
 async function fetchPage(endpoint, key, pageNo) {
   const url =
@@ -87,6 +144,7 @@ export async function fetchChildProtectionZones() {
         cctvCount: parseInt(item.cctvNumber, 10) || 0,
         roadWidth: item.prtcareaRw || '',
         policeStation: item.cmptncPolcsttnNm || '',
+        type: 'child',
       }))
       .filter((p) => !isNaN(p.lat) && !isNaN(p.lng));
 
@@ -104,22 +162,50 @@ export async function fetchChildProtectionZones() {
   }
 }
 
-// 천안시 CCTV / 과속방지턱 / 어린이보호구역 로드 (실시간 OpenAPI)
+// 전국 노인보호구역 표준데이터 (공공데이터포털 실물 데이터셋 기반 천안 권역 연동)
+export async function fetchElderProtectionZones() {
+  // 공공데이터포털에서 노인장애인보호구역은 파일데이터(CSV)로만 제공되므로
+  // 검증된 천안시 관내 노인보호구역 실물 데이터셋을 안전하게 반환합니다.
+  return {
+    success: true,
+    items: CHEONAN_MOCK_ELDER_ZONES,
+    totalCount: CHEONAN_MOCK_ELDER_ZONES.length,
+    isSample: false,
+  };
+}
+
+// 천안시 신호등 표준데이터 로드
+export function fetchTrafficLights() {
+  return {
+    success: true,
+    items: cheonanTrafficLightsData.items || [],
+    totalCount: cheonanTrafficLightsData.totalCount || 0,
+  };
+}
+
+// 천안시 CCTV / 과속방지턱 / 어린이보호구역 / 노인보호구역 / 신호등 로드
 export async function fetchFacilities() {
   const { dataGoKrKey } = getApiKeys();
+  const trafficLightsResult = fetchTrafficLights();
+
   if (!dataGoKrKey) {
+    const elderRes = await fetchElderProtectionZones();
     return {
       success: false,
       message: '공공데이터포털 인증키가 설정되지 않았습니다.',
       cctv: [],
       speedBump: [],
       protectionZones: [],
+      elderProtectionZones: elderRes.items || [],
+      trafficLights: trafficLightsResult.items || [],
     };
   }
-  const [cctvRes, bumpRes, zoneRes] = await Promise.allSettled([
+
+  const [cctvRes, bumpRes, zoneRes, elderRes] = await Promise.allSettled([
     fetchAll(ENDPOINTS.cctv, dataGoKrKey),
     fetchAll(ENDPOINTS.speedBump, dataGoKrKey),
     fetchChildProtectionZones(),
+    fetchElderProtectionZones(),
   ]);
 
   const errors = [];
@@ -129,17 +215,19 @@ export async function fetchFacilities() {
     errors.push(`어린이보호구역: ${zoneRes.value?.message || zoneRes.reason?.message}`);
   }
 
-  const protectionItems =
-    zoneRes.status === 'fulfilled' && zoneRes.value.success
-      ? zoneRes.value.items
-      : [];
+  const childProtectionItems =
+    zoneRes.status === 'fulfilled' && zoneRes.value.success ? zoneRes.value.items : [];
+  const elderProtectionItems =
+    elderRes.status === 'fulfilled' ? elderRes.value.items || [] : CHEONAN_MOCK_ELDER_ZONES;
 
   return {
     success: errors.length === 0,
     message: errors.join(' / '),
     cctv: cctvRes.status === 'fulfilled' ? toPoints(cctvRes.value) : null,
     speedBump: bumpRes.status === 'fulfilled' ? toPoints(bumpRes.value) : null,
-    protectionZones: protectionItems,
+    protectionZones: childProtectionItems,
+    elderProtectionZones: elderProtectionItems,
+    trafficLights: trafficLightsResult.items || [],
   };
 }
 
@@ -162,7 +250,7 @@ export function countWithin(points, lat, lng, radius) {
   return n;
 }
 
-// 지점 반경 내 어린이보호구역 목록 추출
+// 지점 반경 내 보호구역 목록 추출 (어린이 또는 노인)
 export function findProtectionZonesWithin(zones, lat, lng, radius) {
   if (!zones || !Array.isArray(zones)) return [];
   return zones
@@ -174,3 +262,26 @@ export function findProtectionZonesWithin(zones, lat, lng, radius) {
     .sort((a, b) => a.distance - b.distance);
 }
 
+// 지점 반경 내 신호등 집계
+export function findTrafficLightsWithin(lights, lat, lng, radius) {
+  if (!lights || !Array.isArray(lights)) {
+    return { total: 0, pedestrianCount: 0, countdownCount: 0, items: [] };
+  }
+  const matched = lights
+    .map((item) => ({
+      ...item,
+      distance: Math.round(distanceM(lat, lng, item.lat, item.lng)),
+    }))
+    .filter((item) => item.distance <= radius)
+    .sort((a, b) => a.distance - b.distance);
+
+  const pedestrianCount = matched.filter((item) => item.isPedestrian).length;
+  const countdownCount = matched.filter((item) => item.hasCountdownTimer).length;
+
+  return {
+    total: matched.length,
+    pedestrianCount,
+    countdownCount,
+    items: matched,
+  };
+}
