@@ -23,6 +23,8 @@ dist-ssr
 .agents
 .cursor
 
+PROJECT_ROADMAP.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
