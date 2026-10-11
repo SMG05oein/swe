@@ -1,51 +1,65 @@
-# SWE
+# SWE (Smart Traffic Safety Intelligence Dashboard)
 
-React + Vite 기반 교통 안전 정보 웹 앱입니다. 공공데이터포털과 도로교통공단 OpenAPI를 사용합니다.
+React + Vite based traffic safety information web application utilizing Open Data Portal (data.go.kr) and KoROAD (opendata.koroad.or.kr) public APIs to visualize accident clusters and surrounding safety facilities in Cheonan-si.
 
-## 기술 스택
+## Tech Stack
 
-- React 19
-- Vite 8
-- ESLint
+- **Frontend**: React 19, Leaflet (OpenStreetMap)
+- **Tooling**: Vite 8, ESLint
+- **Deployment**: Vercel (API Rewrites / Serverless Proxy)
 
-## 시작하기
+## Key Features
+
+- **Accident Cluster Analysis**: Displays child protection zones, elderly pedestrian accidents, and traffic law violation clusters.
+- **Interactive Map View**: Dark-themed Leaflet map with cluster markers, radius circles, and detailed popups.
+- **Safety Facilities Checklist**: Integrates CCTV and speed bump data within cluster radius.
+- **Responsive Layout**: Tailored UI supporting desktop, tablet, and mobile screen sizes.
+
+## Responsive Design Breakpoints
+
+- **Desktop (> 1024px)**: 2-column split view (interactive map + detail panel), full control bar with KPI metrics.
+- **Tablet (<= 1024px)**: Compact 2-column layout, scrollable tab navigation, responsive status indicators.
+- **Mobile (<= 768px)**: Vertical stack layout (dedicated map view + scrollable detail panel), 2x2 grid KPI cards, touch-optimized dialogs.
+- **Compact Mobile (<= 480px)**: Compact header typography, optimized map height (320px), streamlined padding.
+
+## Getting Started
 
 ```bash
 npm install
-cp .env.example .env   # 값을 채워 넣으세요
+cp .env.example .env   # Fill in your API keys
 npm run dev
 ```
 
-## 환경 변수
+## Environment Variables
 
-| 이름 | 설명 |
+| Variable | Description |
 | --- | --- |
-| `VITE_KOROAD_AUTH_KEY` | 도로교통공단 교통사고정보개방시스템 인증키 |
-| `VITE_DATA_GO_KR_API_KEY` | 공공데이터포털 인증키 |
+| `VITE_KOROAD_AUTH_KEY` | KoROAD Traffic Accident Information System Auth Key |
+| `VITE_DATA_GO_KR_API_KEY` | Public Data Portal (data.go.kr) Service Key |
 
-`.env`는 커밋하지 마세요.
+Do not commit `.env`.
 
-## 스크립트
+## Scripts
 
-| 명령 | 설명 |
+| Command | Description |
 | --- | --- |
-| `npm run dev` | 개발 서버 실행 |
-| `npm run build` | 프로덕션 빌드 (`dist/`) |
-| `npm run preview` | 빌드 결과 미리보기 |
-| `npm run lint` | ESLint 실행 |
+| `npm run dev` | Start development server |
+| `npm run build` | Production build (`dist/`) |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
 
-## API 프록시
+## API Proxy Configuration
 
-CORS를 피하기 위해 `/api` 경로를 프록시합니다.
+CORS issues are addressed via `/api` proxies.
 
-| 경로 | 대상 |
+| Route | Target |
 | --- | --- |
 | `/api/koroad/*` | `https://opendata.koroad.or.kr` |
 | `/api/datagokr/*` | `https://apis.data.go.kr` |
 
-- 개발: `vite.config.js`의 `server.proxy`
-- 배포: `vercel.json`의 `rewrites`
+- **Development**: Handled by `vite.config.js` (`server.proxy`)
+- **Production (Vercel)**: Handled by `vercel.json` (`rewrites`)
 
-## 배포 (Vercel)
+## Deployment (Vercel)
 
-GitHub 저장소를 Vercel에 연결해 배포하세요. `dist`만 업로드하면 `vercel.json`이 빠져 프록시가 동작하지 않습니다.
+Connect the GitHub repository directly to Vercel. Deploying via GitHub ensures `vercel.json` is automatically included and proxy rewrite rules work as intended.

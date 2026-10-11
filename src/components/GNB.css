@@ -96,3 +96,85 @@
   background: rgba(255, 255, 255, 0.15);
   border-color: var(--border-active);
 }
+
+/* 태블릿 미디어 쿼리 (1024px 이하) */
+@media (max-width: 1024px) {
+  .gnb-header {
+    height: 64px;
+    padding: 0 16px;
+  }
+
+  .gnb-left {
+    gap: 12px;
+  }
+
+  .gnb-title {
+    font-size: 16px;
+  }
+
+  .gnb-location {
+    font-size: 12px;
+  }
+}
+
+/* 모바일 미디어 쿼리 (768px 이하) */
+@media (max-width: 768px) {
+  .gnb-header {
+    height: auto;
+    min-height: 56px;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .gnb-left {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .gnb-title {
+    font-size: 15px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .gnb-location {
+    font-size: 11px;
+    padding: 2px 8px;
+  }
+
+  .gnb-right {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .status-indicator {
+    font-size: 11px;
+    padding: 4px 10px;
+    max-width: calc(100% - 95px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-settings {
+    padding: 5px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}
+
+/* 초소형 모바일 미디어 쿼리 (480px 이하) */
+@media (max-width: 480px) {
+  .brand-badge {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .gnb-title {
+    font-size: 13.5px;
+  }
+}
+

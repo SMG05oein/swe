@@ -26,11 +26,32 @@ export default function MapView({ spots, onSelectSpot, selectedSpot }) {
 
     mapInstanceRef.current = map;
 
+    // 초기 레이아웃 완료 후 및 크기 변경 시 지도 크기 재계산
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+
+    const handleResize = () => {
+      map.invalidateSize();
+    };
+    window.addEventListener('resize', handleResize);
+
+    let resizeObserver = null;
+    if (window.ResizeObserver && mapRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      resizeObserver.observe(mapRef.current);
+    }
+
     return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeObserver) resizeObserver.disconnect();
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
+
 
   const markersMapRef = useRef(new Map());
 
