@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/koroad/:path*",
+      "destination": "https://opendata.koroad.or.kr/:path*"
+    },
+    {
+      "source": "/api/datagokr/:path*",
+      "destination": "https://apis.data.go.kr/:path*"
+    }
+  ]
+}
