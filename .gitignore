@@ -35,3 +35,12 @@ PROJECT_ROADMAP.md
 *.njsproj
 *.sln
 *.sw?
+
+# AI Large Model Weights & Python Cache
+*.gguf
+*.bin
+*.pt
+*.safetensors
+Back/AI/*.gguf
+__pycache__/
+*.py[cod]

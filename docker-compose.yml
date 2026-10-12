@@ -1,0 +1,37 @@
+services:
+  # 패스트에이피아이(FastAPI) 백엔드 서비스
+  backend:
+    build:
+      context: ./Back
+      dockerfile: Dockerfile
+    container_name: cheonan_safety_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=cheonan-safety
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  # 올라마(Ollama) 인공지능 추론 서비스
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cheonan_safety_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./Back/AI:/root/ai_models
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+# 올라마 모델 가중치 영구 보존용 볼륨
+volumes:
+  ollama_data:
