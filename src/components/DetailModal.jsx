@@ -1,12 +1,16 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import './DetailModal.css';
 import {
   countWithin,
   findProtectionZonesWithin,
   findTrafficLightsWithin,
 } from '../api/facilitiesApi';
+import { getAiDiagnosis } from '../api/aiApi';
 
 export default function DetailModal({ spot, isOpen, onClose, facilities }) {
+  const [aiData, setAiData] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
@@ -15,6 +19,85 @@ export default function DetailModal({ spot, isOpen, onClose, facilities }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // AI 인텔리전스 실시간 진단 호출
+  useEffect(() => {
+    if (!isOpen || !spot) return;
+
+    let isMounted = true;
+    setIsAiLoading(true);
+    setAiData(null);
+
+    const latVal = parseFloat(spot.la_crd);
+    const lngVal = parseFloat(spot.lo_crd);
+    const radVal = spot.radius || 300;
+    const distName =
+      spot.sido_sgg_nm ||
+      (spot.spot_nm && spot.spot_nm.includes('동남구') ? '천안시 동남구' : '천안시 서북구');
+
+    const dCnt = parseInt(spot.dth_dnv_cnt, 10) || 0;
+    const sCnt = parseInt(spot.se_dnv_cnt, 10) || 0;
+    const mCnt = (parseInt(spot.sl_dnv_cnt, 10) || 0) + (parseInt(spot.wnd_dnv_cnt, 10) || 0);
+    const cCnt = parseInt(spot.caslt_cnt, 10) || (dCnt + sCnt + mCnt);
+
+    const cctv = countWithin(facilities?.cctv, latVal, lngVal, radVal) || 0;
+    const bump = countWithin(facilities?.speedBump, latVal, lngVal, radVal) || 0;
+    const cZones = findProtectionZonesWithin(facilities?.protectionZones, latVal, lngVal, radVal);
+    const eZones = findProtectionZonesWithin(facilities?.elderProtectionZones, latVal, lngVal, radVal);
+    const tLights = findTrafficLightsWithin(facilities?.trafficLights, latVal, lngVal, radVal);
+
+    let rShape = '일반 교차로 및 단일로';
+    const sName = spot.spot_nm || '';
+    if (sName.includes('오거리')) {
+      rShape = '5지 교차로 (다방향 분기·합류로 인한 시야 분산 및 딜레마존 위험)';
+    } else if (sName.includes('사거리') || sName.includes('교차로')) {
+      rShape = '4지 교차로 (교차로 우회전 사각지대 및 직각충돌 위험)';
+    } else if (sName.includes('삼거리')) {
+      rShape = '3지 교차로 (진입차량 가속 및 보행자 횡단 대기 안전 주의)';
+    } else if (sName.includes('앞') || sName.includes('통학로')) {
+      rShape = '단일로 통학/상업로 (보행자 돌출 및 불법주정차 시야 가림 위험)';
+    }
+
+    const checks = [
+      tLights.pedestrianCount > 0,
+      tLights.countdownCount > 0,
+      cctv > 0,
+      bump > 0,
+      cZones.length > 0 || eZones.length > 0,
+    ];
+    const defScore = checks.filter(Boolean).length * 20;
+
+    getAiDiagnosis({
+      spot_nm: spot.spot_nm,
+      district: distName,
+      category: spot.category || 'child',
+      year: spot.year || '2023',
+      casualties: cCnt,
+      deaths: dCnt,
+      serious: sCnt,
+      minor: mCnt,
+      road_shape: rShape,
+      deficit_score: defScore,
+      cctv_count: cctv,
+      bump_count: bump,
+      ped_light_count: tLights.pedestrianCount || 0,
+      countdown_count: tLights.countdownCount || 0,
+      has_zone: cZones.length > 0 || eZones.length > 0,
+    })
+      .then((res) => {
+        if (isMounted) {
+          setAiData(res);
+          setIsAiLoading(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsAiLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, spot?.spot_nm, spot?.year, spot?.category]);
 
   if (!isOpen || !spot) return null;
 
@@ -287,11 +370,68 @@ export default function DetailModal({ spot, isOpen, onClose, facilities }) {
             </div>
           </section>
 
+          {/* AI 인공지능 안전 인텔리전스 정밀 진단 */}
+          <section className="modal-section ai-section">
+            <div className="ai-section-header">
+              <div className="ai-section-title-wrap">
+                <span className="ai-robot-icon">🤖</span>
+                <span className="ai-main-title">AI 안전 인텔리전스 정밀 진단</span>
+              </div>
+              <div className="ai-pill-wrap">
+                {isAiLoading ? (
+                  <span className="ai-status-pill loading">
+                    <span className="ai-spinner-dot"></span>
+                    <span>모델 추론 분석 중...</span>
+                  </span>
+                ) : aiData?.source === 'ollama_ai' ? (
+                  <span className="ai-status-pill model">✨ 천안시 특화 AI 모델 (Qwen2.5-7B)</span>
+                ) : (
+                  <span className="ai-status-pill fallback">🛡️ 규칙 기반 안전 진단 엔진</span>
+                )}
+              </div>
+            </div>
+
+            {isAiLoading ? (
+              <div className="ai-loading-box">
+                <div className="ai-loading-indicator">
+                  <div className="ai-loading-pulse"></div>
+                  <div className="ai-pulse-glow"></div>
+                </div>
+                <div className="ai-loading-text-wrap">
+                  <div className="ai-loading-main-text">
+                    천안시 사고 실측 빅데이터와 반경 300m 시설물 결측 데이터를 바탕으로 AI 심층 분석 중...
+                  </div>
+                  <div className="ai-loading-sub-text">
+                    로컬 GPU 가속을 통해 교통사고 원인 진단 및 맞춤 대책을 실시간 도출하고 있습니다.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="ai-content-box">
+                <div className="ai-diag-quote">
+                  {aiData?.comprehensive_diagnosis || '사고 통계와 시설 결측률을 분석하여 맞춤 안전 대책을 수립합니다.'}
+                </div>
+                {aiData?.infrastructure_recommendations && aiData.infrastructure_recommendations.length > 0 && (
+                  <div className="ai-infra-box">
+                    <div className="ai-infra-header">💡 천안시 맞춤 안전 인프라 개선 권고안 (AI)</div>
+                    <ul className="ai-infra-list">
+                      {aiData.infrastructure_recommendations.map((rec, i) => (
+                        <li key={i}>{rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
           {/* 사고 유형별 맞춤 교통안전 행동 수칙 */}
           <section className="modal-section">
             <div className="modal-section-title">
               <span>사고 유형별 맞춤 교통안전 행동 수칙</span>
-              <span className="modal-section-subtitle">도로교통법 기준 예방 가이드</span>
+              <span className="modal-section-subtitle">
+                {aiData?.source === 'ollama_ai' ? 'AI 최적화 행동 가이드' : '도로교통법 기준 예방 가이드'}
+              </span>
             </div>
             <div className="action-rules-grid">
               <div className="action-rule-card driver">
@@ -299,14 +439,34 @@ export default function DetailModal({ spot, isOpen, onClose, facilities }) {
                   <span>🚗</span>
                   <span>운전자 안전 주행 수칙</span>
                 </div>
-                <div className="action-rule-content">{driverRule}</div>
+                <div className="action-rule-content">
+                  {aiData?.driver_rules && aiData.driver_rules.length > 0 ? (
+                    <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {aiData.driver_rules.map((rule, idx) => (
+                        <li key={idx}>{rule}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    driverRule
+                  )}
+                </div>
               </div>
               <div className="action-rule-card pedestrian">
                 <div className="action-rule-header">
                   <span>🚶</span>
                   <span>보행자 (어린이·어르신) 행동 수칙</span>
                 </div>
-                <div className="action-rule-content">{pedestrianRule}</div>
+                <div className="action-rule-content">
+                  {aiData?.pedestrian_rules && aiData.pedestrian_rules.length > 0 ? (
+                    <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {aiData.pedestrian_rules.map((rule, idx) => (
+                        <li key={idx}>{rule}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    pedestrianRule
+                  )}
+                </div>
               </div>
             </div>
           </section>

@@ -160,6 +160,9 @@ def build_rule_fallback(req: DiagnosisRequest) -> DiagnosisResponse:
 
 def extract_json_from_llm(raw_text: str) -> Optional[dict]:
     """LLM 생성 텍스트에서 안전하게 순수 JSON 객체를 추출하고 파싱하는 함수"""
+    if not raw_text:
+        return None
+
     # 1차 시도: 직접 JSON 파싱
     try:
         return json.loads(raw_text.strip())
@@ -181,6 +184,24 @@ def extract_json_from_llm(raw_text: str) -> Optional[dict]:
             return json.loads(brace_match.group(1).strip())
         except Exception:
             pass
+
+    # 4차 시도: 불완전 종료된 JSON 자동 보정 (닫는 따옴표, 괄호 자동 마감)
+    if "{" in raw_text:
+        start_idx = raw_text.find("{")
+        snippet = raw_text[start_idx:].strip()
+        # 끝부분이 따옴표나 쉼표 등 불완전한 상태일 때 닫는 괄호 순차 시도
+        candidates = [
+            snippet + "}",
+            snippet + "\"]}",
+            snippet + "\"}]}",
+            snippet + "\"]\n}",
+            snippet + "\"\n]}",
+        ]
+        for cand in candidates:
+            try:
+                return json.loads(cand)
+            except Exception:
+                continue
 
     return None
 
@@ -267,24 +288,44 @@ async def diagnose_spot(req: DiagnosisRequest):
         ],
         "format": "json",
         "stream": False,
-        "options": {"temperature": 0.2, "top_p": 0.85},
+        "options": {"temperature": 0.2, "top_p": 0.85, "num_predict": 450},
     }
 
-    # 올라마 비동기 호출 시도
+    # 올라마 비동기 호출 시도 (로컬 GPU/CPU 추론 시간 고려 90초 대기)
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             resp = await client.post(f"{OLLAMA_HOST}/api/chat", json=payload)
             if resp.status_code == 200:
                 data = resp.json()
                 content = data.get("message", {}).get("content", "")
+                print(f"[OLLAMA_AI_RESPONSE] {content}")
                 parsed = extract_json_from_llm(content)
                 if parsed and "comprehensive_diagnosis" in parsed:
+                    # 문장이 중간에 잘려 끝나는 경우 대비 자연스러운 마침표 및 종결 처리
+                    def clean_rules(rule_list, fallback_list):
+                        cleaned = []
+                        for r in rule_list:
+                            if not r or len(r.strip()) < 5:
+                                continue
+                            text = r.strip()
+                            if not text.endswith((".", "!", "요", "다", "오")):
+                                text += " 확인 후 주의하여 보행하십시오."
+                            cleaned.append(text)
+                        return (cleaned + fallback_list)[:2]
+
+                    rule_fb = build_rule_fallback(req)
+                    d_rules = clean_rules(parsed.get("driver_rules", []), rule_fb.driver_rules)
+                    p_rules = clean_rules(parsed.get("pedestrian_rules", []), rule_fb.pedestrian_rules)
+                    infra_recs = parsed.get("infrastructure_recommendations", [])
+                    if not infra_recs or len(infra_recs) == 0:
+                        infra_recs = rule_fb.infrastructure_recommendations
+
                     result = DiagnosisResponse(
                         risk_level=parsed.get("risk_level", "경고 등급"),
-                        comprehensive_diagnosis=parsed.get("comprehensive_diagnosis", ""),
-                        driver_rules=parsed.get("driver_rules", [])[:2],
-                        pedestrian_rules=parsed.get("pedestrian_rules", [])[:2],
-                        infrastructure_recommendations=parsed.get("infrastructure_recommendations", [])[:3],
+                        comprehensive_diagnosis=parsed.get("comprehensive_diagnosis", rule_fb.comprehensive_diagnosis),
+                        driver_rules=d_rules,
+                        pedestrian_rules=p_rules,
+                        infrastructure_recommendations=infra_recs[:3],
                         source="ollama_ai",
                     )
                     cache[cache_key] = result
