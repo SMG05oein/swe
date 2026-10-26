@@ -9,12 +9,14 @@ export default function GNB({
   onSelectRegion,
   currentYear = 'ALL',
   onSelectYear,
+  extraActions = null,
+  title = '교통약자 보행경로 안전',
 }) {
   return (
     <header className="gnb-header">
       <div className="gnb-left">
         <span className="brand-badge">TAAS &amp; OPEN DATA</span>
-        <h1 className="gnb-title">교통약자 안전 인텔리전스</h1>
+        <h1 className="gnb-title">{title}</h1>
         <div className="region-selector">
           <button
             type="button"
@@ -55,6 +57,7 @@ export default function GNB({
           <span>{statusMsg}</span>
         </div>
 
+        {extraActions}
         <button className="btn-settings" onClick={onOpenSettings}>
           API 키 설정
         </button>

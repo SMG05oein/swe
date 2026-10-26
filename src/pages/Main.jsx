@@ -1,142 +1,299 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import './Main.css';
 import GNB from '../components/GNB';
 import MapView from '../components/MapView';
-import { REGION_PRESETS } from '../data/regions';
-import SpotDetailCard from '../components/SpotDetailCard';
-import SpotListCard from '../components/SpotListCard';
+import RouteInputPanel from '../components/RouteInputPanel';
+import HazardList from '../components/HazardList';
+import RouteCompare from '../components/RouteCompare';
 import ApiKeyModal from '../components/ApiKeyModal';
+import DetailModal from '../components/DetailModal';
+import ChecklistPanel from '../components/ChecklistPanel';
+import { REGION_PRESETS } from '../data/regions';
 import {
   fetchChildAccidents,
   fetchChildGeneralAccidents,
   fetchElderAccidents,
 } from '../api/trafficApi';
 import { getApiKeys, saveApiKeys } from '../api/apiClient';
-import { fetchFacilities } from '../api/facilitiesApi';
-import ChecklistPanel from '../components/ChecklistPanel';
-import DetailModal from '../components/DetailModal';
+import { fetchFacilities, getSampleFacilities } from '../api/facilitiesApi';
+import { fetchPedestrianRoute } from '../api/routeApi';
+import { reverseGeocode } from '../api/geocodeApi';
+import { fetchChecklistConfig, fetchCachedPublicData } from '../api/adminApi';
+import { DEFAULT_CHECKLIST_CONFIG } from '../domain/checklist';
+import { findHazardsNearRoute, avoidWaypointFromHazards } from '../domain/hazards';
+import { gradeRoute, formatDistance, formatDuration } from '../domain/routeGrade';
+import { getSampleAccidents } from '../data/sampleAccidents';
+
+const SIDEBAR_WIDTH_KEY = 'swe_sidebar_width';
+const SIDEBAR_MIN = 280;
+const SIDEBAR_MAX = 640;
+const SIDEBAR_DEFAULT = 380;
+
+function readSidebarWidth() {
+  const raw = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  if (!Number.isFinite(raw)) return SIDEBAR_DEFAULT;
+  return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, raw));
+}
 
 export default function Main() {
+  const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
+  const [isResizing, setIsResizing] = useState(false);
+  const layoutRef = useRef(null);
   const [currentRegion, setCurrentRegion] = useState('shinbu');
   const [selectedYear, setSelectedYear] = useState('2023');
-  const [activeTab, setActiveTab] = useState('all'); // 통합보기가 기본
+  const [vulnerableType, setVulnerableType] = useState('child');
+  const [origin, setOrigin] = useState(null);
+  const [destination, setDestination] = useState(null);
+  const [pickMode, setPickMode] = useState(null);
+
+  const [route, setRoute] = useState(null);
+  const [altRoute, setAltRoute] = useState(null);
+  const [hazards, setHazards] = useState([]);
+  const [altHazards, setAltHazards] = useState([]);
+  const [activeRouteKey, setActiveRouteKey] = useState('primary');
+  const [selectedHazard, setSelectedHazard] = useState(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [altLoading, setAltLoading] = useState(false);
 
   const [childSchoolzoneData, setChildSchoolzoneData] = useState([]);
   const [childGenData, setChildGenData] = useState([]);
   const [elderData, setElderData] = useState([]);
-  const [selectedSpot, setSelectedSpot] = useState(null);
   const [isAccidentsLoading, setIsAccidentsLoading] = useState(true);
-  const [statusMsg, setStatusMsg] = useState('실시간 데이터 불러오는 중...');
-  const [isMockMode, setIsMockMode] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('데이터 불러오는 중...');
+  const [usingCache, setUsingCache] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [keys, setKeys] = useState({ koroadKey: '', dataGoKrKey: '' });
   const [facilities, setFacilities] = useState({ loading: true });
+  const [checklistConfig, setChecklistConfig] = useState(DEFAULT_CHECKLIST_CONFIG);
+  const [showAccidents, setShowAccidents] = useState(true);
+  const [errorBanner, setErrorBanner] = useState('');
 
-  const loadFacilities = () => {
+  const loadFacilities = useCallback(() => {
     setFacilities({ loading: true });
     fetchFacilities()
-      .then((f) => setFacilities({ ...f, loading: false }))
-      .catch((e) =>
-        setFacilities({ loading: false, message: e.message, cctv: null, speedBump: null })
-      );
-  };
-
-  useEffect(() => {
-    fetchFacilities()
-      .then((f) => setFacilities({ ...f, loading: false }))
-      .catch((e) =>
-        setFacilities({ loading: false, message: e.message, cctv: null, speedBump: null })
-      );
+      .then((f) => {
+        setFacilities({ ...f, loading: false });
+        if (f.fromSample) {
+          setUsingCache(true);
+          setErrorBanner(f.message || '공공데이터포털 장애로 샘플 시설 데이터를 사용합니다.');
+        }
+      })
+      .catch(async () => {
+        const cached = await fetchCachedPublicData();
+        if (cached?.available && cached.data?.facilities) {
+          setFacilities({ ...cached.data.facilities, loading: false, fromCache: true });
+          setUsingCache(true);
+          setErrorBanner('외부 API 장애로 저장된 시설 데이터를 사용 중입니다.');
+        } else {
+          setFacilities({ ...getSampleFacilities(), loading: false });
+          setUsingCache(true);
+          setErrorBanner('공공데이터포털 연결 실패로 시설 샘플 모드로 전환합니다.');
+        }
+      });
   }, []);
 
-  const [apiStatuses, setApiStatuses] = useState({
-    child_schoolzone: { success: false, statusText: '확인 중' },
-    child_gen: { success: false, statusText: '확인 중' },
-    elder: { success: false, statusText: '확인 중' },
-  });
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadFacilities();
+      fetchChecklistConfig()
+        .then(setChecklistConfig)
+        .catch(() => setChecklistConfig(DEFAULT_CHECKLIST_CONFIG));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadFacilities]);
 
   const reloadData = useCallback(
     async (targetYear = selectedYear, targetRegion = currentRegion) => {
       setIsAccidentsLoading(true);
       setStatusMsg('실시간 API 데이터 불러오는 중...');
-      const currentKeys = getApiKeys();
-      setKeys(currentKeys);
-
+      setKeys(getApiKeys());
       const targetGuGun = targetRegion === 'dujeong' ? '133' : '131';
 
-      // 노인 사고와 어린이 사고 2대 핵심 취약계층 데이터만 수신
-      const [childRes, childGenRes, elderRes] = await Promise.all([
-        fetchChildAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
-        fetchChildGeneralAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
-        fetchElderAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
-      ]);
+      try {
+        const [childRes, childGenRes, elderRes] = await Promise.all([
+          fetchChildAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
+          fetchChildGeneralAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
+          fetchElderAccidents({ searchYearCd: targetYear, guGun: targetGuGun }),
+        ]);
 
-      setChildSchoolzoneData(childRes.items || []);
-      setChildGenData(childGenRes.items || []);
-      setElderData(elderRes.items || []);
+        const total =
+          (childRes.items?.length || 0) +
+          (childGenRes.items?.length || 0) +
+          (elderRes.items?.length || 0);
 
-      setApiStatuses({
-        child_schoolzone: {
-          success: childRes.success && childRes.items?.length > 0,
-          statusText: childRes.statusText,
-          message: childRes.message,
-        },
-        child_gen: {
-          success: childGenRes.success && childGenRes.items?.length > 0,
-          statusText: childGenRes.statusText,
-          message: childGenRes.message,
-        },
-        elder: {
-          success: elderRes.success && elderRes.items?.length > 0,
-          statusText: elderRes.statusText,
-          message: elderRes.message,
-        },
-      });
-
-      const totalRealItems =
-        (elderRes.items?.length || 0) +
-        (childRes.items?.length || 0) +
-        (childGenRes.items?.length || 0);
-
-      setIsMockMode(false);
-      setIsAccidentsLoading(false);
-
-      const yearLabel =
-        targetYear === 'ALL'
-          ? '2012~2025년 전체'
-          : targetYear === 'RECENT3'
-          ? '최근 3개년'
-          : `${targetYear}년`;
-
-      setStatusMsg(
-        totalRealItems > 0
-          ? `실시간 API 수신 완료 (${yearLabel} ${totalRealItems}건)`
-          : '실시간 API 연동 대기'
-      );
-
-      const firstSpot =
-        elderRes.items?.[0] ||
-        childRes.items?.[0] ||
-        childGenRes.items?.[0] ||
-        null;
-      setSelectedSpot(firstSpot);
+        if (total > 0) {
+          setChildSchoolzoneData(childRes.items || []);
+          setChildGenData(childGenRes.items || []);
+          setElderData(elderRes.items || []);
+          setUsingCache(false);
+          setStatusMsg(`실시간 수신 완료 (${total}건)`);
+          setErrorBanner('');
+        } else {
+          const sample = getSampleAccidents();
+          setChildSchoolzoneData(sample.childSchoolzone);
+          setChildGenData(sample.childGen);
+          setElderData(sample.elder);
+          setUsingCache(true);
+          setStatusMsg('샘플 데이터로 서비스 중');
+          setErrorBanner(
+            '공공데이터포털 연결이 지연되어 천안 샘플 사고 데이터를 사용합니다.'
+          );
+        }
+      } catch {
+        const cached = await fetchCachedPublicData();
+        if (cached?.available && cached.data?.accidents) {
+          const a = cached.data.accidents;
+          setChildSchoolzoneData(a.childSchoolzone || []);
+          setChildGenData(a.childGen || []);
+          setElderData(a.elder || []);
+          setUsingCache(true);
+          setStatusMsg('저장된 데이터로 서비스 중');
+          setErrorBanner('외부 API 장애로 저장된 사고 데이터를 사용 중입니다.');
+        } else {
+          const sample = getSampleAccidents();
+          setChildSchoolzoneData(sample.childSchoolzone);
+          setChildGenData(sample.childGen);
+          setElderData(sample.elder);
+          setUsingCache(true);
+          setStatusMsg('샘플 데이터로 서비스 중');
+          setErrorBanner(
+            '공공데이터포털 연결 실패로 천안 샘플 사고 데이터를 사용합니다.'
+          );
+        }
+      } finally {
+        setIsAccidentsLoading(false);
+      }
     },
     [selectedYear, currentRegion]
   );
 
   useEffect(() => {
-    let isCancelled = false;
-    const timer = setTimeout(() => {
-      if (!isCancelled) {
-        reloadData(selectedYear, currentRegion);
-      }
+    const timer = window.setTimeout(() => {
+      reloadData(selectedYear, currentRegion);
     }, 0);
-    return () => {
-      isCancelled = true;
-      clearTimeout(timer);
-    };
+    return () => window.clearTimeout(timer);
   }, [selectedYear, currentRegion, reloadData]);
+
+  const accidents = useMemo(() => {
+    if (vulnerableType === 'elder') {
+      return elderData.map((d) => ({
+        ...d,
+        color: '#f59e0b',
+        category: 'elder',
+        radius: d.radius || 100,
+      }));
+    }
+    return [
+      ...childSchoolzoneData.map((d) => ({
+        ...d,
+        color: '#38bdf8',
+        category: 'child',
+        radius: d.radius || 300,
+      })),
+      ...childGenData.map((d) => ({
+        ...d,
+        color: '#06b6d4',
+        category: 'child',
+        radius: d.radius || 300,
+      })),
+    ];
+  }, [vulnerableType, elderData, childSchoolzoneData, childGenData]);
+
+  const allProtectionZones = useMemo(
+    () => [...(facilities.protectionZones || []), ...(facilities.elderProtectionZones || [])],
+    [facilities]
+  );
+
+  const analyzePath = useCallback(
+    (path) =>
+      findHazardsNearRoute({
+        path,
+        accidents,
+        protectionZones: allProtectionZones,
+        facilities,
+        config: checklistConfig,
+      }),
+    [accidents, allProtectionZones, facilities, checklistConfig]
+  );
+
+  const handleSearchRoute = async () => {
+    if (!origin || !destination) return;
+    setRouteLoading(true);
+    setAltRoute(null);
+    setAltHazards([]);
+    setActiveRouteKey('primary');
+    setErrorBanner('');
+    try {
+      const result = await fetchPedestrianRoute([origin, destination], {
+        vulnerableType,
+      });
+      const found = analyzePath(result.path);
+      setRoute(result);
+      setHazards(found);
+      setSelectedHazard(found[0] || null);
+    } catch (e) {
+      setErrorBanner(e.message || '경로를 찾지 못했습니다.');
+      setRoute(null);
+      setHazards([]);
+    } finally {
+      setRouteLoading(false);
+    }
+  };
+
+  const handleAltRoute = async () => {
+    if (!origin || !destination || !route) return;
+    setAltLoading(true);
+    setErrorBanner('');
+    try {
+      if (!hazards.length) {
+        setErrorBanner('회피할 위험 구역이 없습니다. 기본 경로와 동일합니다.');
+        setAltRoute(null);
+        setAltHazards([]);
+        return;
+      }
+      const via = avoidWaypointFromHazards(origin, destination, hazards);
+      const waypoints = via ? [origin, via, destination] : [origin, destination];
+      const result = await fetchPedestrianRoute(waypoints, { vulnerableType });
+      const found = analyzePath(result.path);
+      setAltRoute(result);
+      setAltHazards(found);
+      setActiveRouteKey('alt');
+      setSelectedHazard(found[0] || null);
+    } catch (e) {
+      setErrorBanner(e.message || '대체 경로를 찾지 못했습니다.');
+    } finally {
+      setAltLoading(false);
+    }
+  };
+
+  const displayHazards = activeRouteKey === 'alt' && altRoute ? altHazards : hazards;
+  const displayRoute = activeRouteKey === 'alt' && altRoute ? altRoute : route;
+  const displayGrade = useMemo(
+    () => gradeRoute(displayHazards.length, checklistConfig),
+    [displayHazards.length, checklistConfig]
+  );
+
+  const handleSelectComparedRoute = (key) => {
+    setActiveRouteKey(key);
+    const list = key === 'alt' ? altHazards : hazards;
+    setSelectedHazard(list[0] || null);
+  };
+
+  const handleMapClick = async ({ lat, lng }) => {
+    if (!pickMode) return;
+    try {
+      const place = await reverseGeocode(lat, lng);
+      if (pickMode === 'origin') setOrigin(place);
+      else setDestination(place);
+    } catch {
+      const place = { lat, lng, name: `${lat.toFixed(5)}, ${lng.toFixed(5)}` };
+      if (pickMode === 'origin') setOrigin(place);
+      else setDestination(place);
+    }
+    setPickMode(null);
+  };
 
   const handleSaveKeys = (newKeys) => {
     saveApiKeys(newKeys);
@@ -145,233 +302,203 @@ export default function Main() {
     loadFacilities();
   };
 
-  // 노인 사고와 어린이 사고 2가지 유형만 취합
-  const currentSpots = [];
-  if (activeTab === 'all' || activeTab === 'elder') {
-    currentSpots.push(
-      ...elderData.map((d) => ({
-        ...d,
-        color: '#f59e0b',
-        label: '노인 사고 (보행)',
-        badgeClass: 'elder',
-      }))
-    );
-  }
-  if (activeTab === 'all' || activeTab === 'child' || activeTab === 'child_schoolzone') {
-    currentSpots.push(
-      ...childSchoolzoneData.map((d) => ({
-        ...d,
-        color: '#38bdf8',
-        label: '어린이 사고 (스쿨존)',
-        badgeClass: 'child',
-      }))
-    );
-  }
-  if (activeTab === 'all' || activeTab === 'child' || activeTab === 'child_gen') {
-    currentSpots.push(
-      ...childGenData.map((d) => ({
-        ...d,
-        color: '#06b6d4',
-        label: '어린이 사고 (보행)',
-        badgeClass: 'child',
-      }))
-    );
-  }
+  const detailSpot = useMemo(() => {
+    if (!selectedHazard) return null;
+    if (selectedHazard.spot) return selectedHazard.spot;
+    return {
+      spot_nm: selectedHazard.name,
+      la_crd: selectedHazard.lat,
+      lo_crd: selectedHazard.lng,
+      category: vulnerableType,
+      radius: 150,
+      caslt_cnt: 0,
+      dth_dnv_cnt: 0,
+      se_dnv_cnt: 0,
+      sl_dnv_cnt: 0,
+      wnd_dnv_cnt: 0,
+      occrrnc_cnt: 0,
+      _checklist: selectedHazard.checklist,
+      _hazardKind: selectedHazard.kind,
+    };
+  }, [selectedHazard, vulnerableType]);
 
-  const totalAccidents = currentSpots.reduce(
-    (acc, cur) => acc + (parseInt(cur.occrrnc_cnt, 10) || 0),
-    0
-  );
-  const totalCasualties = currentSpots.reduce(
-    (acc, cur) => acc + (parseInt(cur.caslt_cnt, 10) || 0),
-    0
-  );
-  const totalDeaths = currentSpots.reduce(
-    (acc, cur) => acc + (parseInt(cur.dth_dnv_cnt, 10) || 0),
-    0
-  );
+  useEffect(() => {
+    if (!isResizing) return undefined;
 
-  const totalChildCount = childSchoolzoneData.length + childGenData.length;
-  const currentTabStatus =
-    activeTab === 'elder'
-      ? apiStatuses.elder
-      : activeTab === 'child'
-      ? (apiStatuses.child_schoolzone.success || apiStatuses.child_gen.success
-          ? { success: true, statusText: '수신완료' }
-          : { success: false, statusText: '데이터없음' })
-      : null;
+    const onMove = (event) => {
+      const root = layoutRef.current;
+      if (!root) return;
+      const left = root.getBoundingClientRect().left;
+      const next = Math.min(
+        SIDEBAR_MAX,
+        Math.max(SIDEBAR_MIN, event.clientX - left)
+      );
+      setSidebarWidth(next);
+    };
+
+    const onUp = () => {
+      setIsResizing(false);
+      setSidebarWidth((w) => {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round(w)));
+        return w;
+      });
+    };
+
+    document.body.classList.add('is-sidebar-resizing');
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      document.body.classList.remove('is-sidebar-resizing');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [isResizing]);
 
   return (
-    <div className="main-page">
+    <div className="main-page guardian-layout">
       <GNB
         statusMsg={statusMsg}
-        isMockMode={isMockMode}
+        isMockMode={usingCache}
         onOpenSettings={() => setShowSettings(true)}
         currentRegion={currentRegion}
         onSelectRegion={setCurrentRegion}
         currentYear={selectedYear}
-        onSelectYear={(yr) => setSelectedYear(yr)}
+        onSelectYear={setSelectedYear}
+        extraActions={<Link className="btn-admin-link" to="/admin">관리자</Link>}
       />
 
-      <section className="control-bar">
-        <div className="mode-tabs">
-          <button
-            className={`mode-tab ${activeTab === 'all' ? 'active' : ''}`}
-            onClick={() => setActiveTab('all')}
-          >
-            통합보기 ({elderData.length + totalChildCount})
-          </button>
-          <button
-            className={`mode-tab ${activeTab === 'elder' ? 'active' : ''}`}
-            onClick={() => setActiveTab('elder')}
-          >
-            노인 사고 ({elderData.length})
-            <span
-              className={`tab-status ${
-                isAccidentsLoading
-                  ? 'loading'
-                  : apiStatuses.elder.success
-                  ? 'live'
-                  : 'mock'
-              }`}
-            >
-              {isAccidentsLoading
-                ? '불러오는 중...'
-                : apiStatuses.elder.success
-                ? '수신완료'
-                : '데이터없음'}
-            </span>
-          </button>
-          <button
-            className={`mode-tab ${activeTab === 'child' ? 'active' : ''}`}
-            onClick={() => setActiveTab('child')}
-          >
-            어린이 사고 ({totalChildCount})
-            <span
-              className={`tab-status ${
-                isAccidentsLoading
-                  ? 'loading'
-                  : apiStatuses.child_schoolzone.success || apiStatuses.child_gen.success
-                  ? 'live'
-                  : 'mock'
-              }`}
-            >
-              {isAccidentsLoading
-                ? '불러오는 중...'
-                : apiStatuses.child_schoolzone.success || apiStatuses.child_gen.success
-                ? '수신완료'
-                : '데이터없음'}
-            </span>
-          </button>
-        </div>
+      {errorBanner && <div className="api-banner">{errorBanner}</div>}
 
-        <div className="kpi-row">
-          <div className="kpi-badge" style={{ borderColor: 'rgba(56, 189, 248, 0.4)' }}>
-            통계 기준{' '}
-            <span className="kpi-value" style={{ color: '#38bdf8' }}>
-              {selectedYear === 'ALL'
-                ? '2012~2025년 통합'
-                : selectedYear === 'RECENT3'
-                ? '최근 3개년'
-                : `${selectedYear}년`}
-            </span>
-          </div>
-          <div className="kpi-badge">
-            다발지점{' '}
-            <span className="kpi-value">
-              {isAccidentsLoading ? '불러오는 중...' : `${currentSpots.length}곳`}
-            </span>
-          </div>
-          <div className="kpi-badge">
-            보호구역 (스쿨+실버){' '}
-            <span className="kpi-value" style={{ color: '#10b981' }}>
-              {facilities.loading
-                ? '불러오는 중...'
-                : `${(facilities.protectionZones || []).length +
-                    (facilities.elderProtectionZones || []).length}개소`}
-            </span>
-          </div>
-          <div className="kpi-badge">
-            총 사고{' '}
-            <span className="kpi-value">
-              {isAccidentsLoading ? '불러오는 중...' : `${totalAccidents}건`}
-            </span>
-          </div>
-          <div className="kpi-badge">
-            총 사상자{' '}
-            <span className="kpi-value">
-              {isAccidentsLoading ? '불러오는 중...' : `${totalCasualties}명`}
-            </span>
-          </div>
-          <div className="kpi-badge">
-            사망자{' '}
-            <span className="kpi-value" style={{ color: '#f43f5e' }}>
-              {isAccidentsLoading ? '불러오는 중...' : `${totalDeaths}명`}
-            </span>
-          </div>
-        </div>
-      </section>
+      <main
+        className={`main-view guardian-view ${isResizing ? 'resizing' : ''}`}
+        ref={layoutRef}
+        style={{ '--sidebar-width': `${sidebarWidth}px` }}
+      >
+        <aside className="guardian-sidebar">
+          <RouteInputPanel
+            vulnerableType={vulnerableType}
+            onVulnerableTypeChange={setVulnerableType}
+            origin={origin}
+            destination={destination}
+            pickMode={pickMode}
+            onPickModeChange={setPickMode}
+            onSetOrigin={setOrigin}
+            onSetDestination={setDestination}
+            onSearchRoute={handleSearchRoute}
+            onRequestAlt={handleAltRoute}
+            loading={routeLoading}
+            altLoading={altLoading}
+            hasRoute={Boolean(route)}
+            routeMeta={
+              displayRoute
+                ? {
+                    distanceLabel: formatDistance(displayRoute.distance),
+                    durationLabel: `${formatDuration(displayRoute.duration)} (보행)`,
+                  }
+                : null
+            }
+            routeGrade={displayRoute ? displayGrade : null}
+          />
+          <HazardList
+            hazards={displayHazards}
+            selectedId={selectedHazard?.id}
+            onSelect={(h) => {
+              setSelectedHazard(h);
+              setShowDetailModal(true);
+            }}
+            grade={displayRoute ? displayGrade : null}
+          />
+          <RouteCompare
+            active={activeRouteKey}
+            onSelect={handleSelectComparedRoute}
+            primary={
+              route
+                ? {
+                    distance: route.distance,
+                    duration: route.duration,
+                    hazardCount: hazards.length,
+                  }
+                : null
+            }
+            alternative={
+              altRoute
+                ? {
+                    distance: altRoute.distance,
+                    duration: altRoute.duration,
+                    hazardCount: altHazards.length,
+                  }
+                : null
+            }
+          />
+          {selectedHazard && (
+            <div className="sidebar-checklist">
+              <ChecklistPanel
+                spot={detailSpot}
+                facilities={facilities}
+                checklistResult={selectedHazard.checklist}
+                config={checklistConfig}
+              />
+            </div>
+          )}
+          {isAccidentsLoading && (
+            <p className="sidebar-hint">사고·시설 데이터를 불러오는 중...</p>
+          )}
+        </aside>
 
-      <main className="main-view">
-        <MapView
-          spots={currentSpots}
-          selectedSpot={selectedSpot}
-          onSelectSpot={setSelectedSpot}
-          protectionZones={[
-            ...(facilities.protectionZones || []),
-            ...(facilities.elderProtectionZones || []),
-          ]}
-          currentRegion={currentRegion}
-          regionPresets={REGION_PRESETS}
-          onOpenDetail={(spot) => {
-            setSelectedSpot(spot);
-            setShowDetailModal(true);
+        <div
+          className="sidebar-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="사이드바 너비 조절"
+          aria-valuemin={SIDEBAR_MIN}
+          aria-valuemax={SIDEBAR_MAX}
+          aria-valuenow={Math.round(sidebarWidth)}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+          onDoubleClick={() => {
+            setSidebarWidth(SIDEBAR_DEFAULT);
+            localStorage.setItem(SIDEBAR_WIDTH_KEY, String(SIDEBAR_DEFAULT));
           }}
         />
 
-
-        <aside className="detail-panel">
-          {currentSpots.length === 0 ? (
-            <div className="panel-card" style={{ padding: '24px 16px' }}>
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  color: isAccidentsLoading ? '#38bdf8' : '#f59e0b',
-                  marginBottom: '8px',
-                }}
-              >
-                {isAccidentsLoading ? '데이터 불러오는 중...' : 'API 데이터가 없습니다'}
-              </div>
-              <p style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6' }}>
-                {isAccidentsLoading
-                  ? '실시간 교통사고 및 시설물 데이터를 불러오는 중입니다. 잠시만 기다려 주세요.'
-                  : currentTabStatus?.message ||
-                    '해당 카테고리의 2023년 천안시 동남구 실시간 공공데이터가 없거나 조회 조건과 일치하지 않습니다.'}
-              </p>
-            </div>
-          ) : (
-            <>
-              <SpotDetailCard
-                spot={selectedSpot}
-                onOpenDetail={() => setShowDetailModal(true)}
-              />
-              <ChecklistPanel spot={selectedSpot} facilities={facilities} />
-              <SpotListCard
-                spots={currentSpots}
-                selectedSpot={selectedSpot}
-                onSelectSpot={setSelectedSpot}
-              />
-            </>
-          )}
-        </aside>
+        <MapView
+          spots={accidents}
+          hazards={displayHazards}
+          protectionZones={allProtectionZones}
+          routePath={displayRoute?.path}
+          altRoutePath={
+            altRoute
+              ? activeRouteKey === 'alt'
+                ? route?.path
+                : altRoute.path
+              : null
+          }
+          origin={origin}
+          destination={destination}
+          selectedHazard={selectedHazard}
+          onSelectHazard={(h) => {
+            setSelectedHazard(h);
+            setShowDetailModal(true);
+          }}
+          onMapClick={handleMapClick}
+          pickMode={pickMode}
+          showAccidents={showAccidents}
+          onToggleAccidents={setShowAccidents}
+          currentRegion={currentRegion}
+          regionPresets={REGION_PRESETS}
+        />
       </main>
 
       <DetailModal
-        spot={selectedSpot}
+        spot={detailSpot}
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
         facilities={facilities}
+        checklistConfig={checklistConfig}
+        precomputedChecklist={selectedHazard?.checklist}
+        vulnerableType={vulnerableType}
       />
 
       <ApiKeyModal

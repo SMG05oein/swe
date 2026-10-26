@@ -7,6 +7,137 @@
   overflow: hidden;
 }
 
+.main-view.guardian-view {
+  display: flex !important;
+  flex-direction: row;
+  grid-template-columns: none !important;
+  flex: 1;
+  min-height: 0;
+  --sidebar-width: 380px;
+}
+
+.guardian-view.resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+
+.guardian-sidebar {
+  width: var(--sidebar-width);
+  min-width: 280px;
+  max-width: 640px;
+  flex: 0 0 var(--sidebar-width);
+  overflow: auto;
+  background: rgba(11, 17, 32, 0.85);
+}
+
+.sidebar-resizer {
+  flex: 0 0 6px;
+  width: 6px;
+  cursor: col-resize;
+  position: relative;
+  background: transparent;
+  border-left: 1px solid var(--border-subtle);
+  border-right: 1px solid transparent;
+  z-index: 5;
+  touch-action: none;
+}
+
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.45);
+}
+
+.sidebar-resizer:hover,
+.guardian-view.resizing .sidebar-resizer {
+  background: rgba(56, 189, 248, 0.12);
+  border-left-color: rgba(56, 189, 248, 0.55);
+}
+
+.sidebar-resizer:hover::after,
+.guardian-view.resizing .sidebar-resizer::after {
+  background: #38bdf8;
+}
+
+body.is-sidebar-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.main-view.guardian-view .map-section {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  align-self: stretch;
+}
+
+.api-banner {
+  padding: 8px 16px;
+  background: rgba(245, 158, 11, 0.15);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.btn-admin-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.sidebar-hint {
+  padding: 0 16px 16px;
+  font-size: 12px;
+  color: #38bdf8;
+}
+
+.sidebar-checklist {
+  padding: 0 12px 16px;
+}
+
+.badge-status.unknown {
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+@media (max-width: 900px) {
+  .main-view.guardian-view {
+    flex-direction: column;
+  }
+
+  .guardian-sidebar {
+    width: 100% !important;
+    max-width: none;
+    flex: 0 0 auto;
+    max-height: 42vh;
+  }
+
+  .sidebar-resizer {
+    display: none;
+  }
+
+  .main-view.guardian-view .map-section {
+    flex: 1 1 auto;
+    min-height: 320px;
+  }
+}
+
 /* Control Bar */
 .control-bar {
   padding: 12px 24px;

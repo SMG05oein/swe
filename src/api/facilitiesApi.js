@@ -11,6 +11,51 @@ const ENDPOINTS = {
   speedBump: '/api/datagokr/1741000/speed_bump_info/info',
 };
 
+/** Sample facilities used when data.go.kr returns 502 / timeout */
+const SAMPLE_CCTV = [
+  { lat: 36.8198, lng: 127.1568, count: 2, purpose: '어린이보호' },
+  { lat: 36.8245, lng: 127.1560, count: 3, purpose: '방범' },
+  { lat: 36.8321, lng: 127.1402, count: 2, purpose: '어린이보호' },
+  { lat: 36.8288, lng: 127.1380, count: 1, purpose: '방범' },
+  { lat: 36.8155, lng: 127.1542, count: 2, purpose: '교통단속' },
+];
+
+const SAMPLE_SPEED_BUMPS = [
+  { lat: 36.8195, lng: 127.1565, count: 1, purpose: '' },
+  { lat: 36.8242, lng: 127.1558, count: 1, purpose: '' },
+  { lat: 36.8318, lng: 127.1400, count: 2, purpose: '' },
+  { lat: 36.8152, lng: 127.1540, count: 1, purpose: '' },
+];
+
+const SAMPLE_CHILD_ZONES = [
+  {
+    name: '천안중앙초등학교 어린이보호구역',
+    kind: '초등학교',
+    roadAddr: '충청남도 천안시 동남구 신부동',
+    lotAddr: '',
+    lat: 36.8198,
+    lng: 127.1568,
+    cctvYn: true,
+    cctvCount: 2,
+    roadWidth: '8m',
+    policeStation: '천안동남경찰서',
+    type: 'child',
+  },
+  {
+    name: '두정초등학교 어린이보호구역',
+    kind: '초등학교',
+    roadAddr: '충청남도 천안시 서북구 두정동',
+    lotAddr: '',
+    lat: 36.8321,
+    lng: 127.1402,
+    cctvYn: true,
+    cctvCount: 2,
+    roadWidth: '10m',
+    policeStation: '천안서북경찰서',
+    type: 'child',
+  },
+];
+
 // 천안시 표본 노인보호구역 (API 미설정 또는 미제공 시 실물 보완 데이터)
 const CHEONAN_MOCK_ELDER_ZONES = [
   {
@@ -67,12 +112,22 @@ const CHEONAN_MOCK_ELDER_ZONES = [
   },
 ];
 
+async function fetchWithTimeout(url, ms = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchPage(endpoint, key, pageNo) {
   const url =
     `${endpoint}?serviceKey=${formatAuthKey(key)}&pageNo=${pageNo}` +
     `&numOfRows=${PAGE_SIZE}&returnType=json` +
     `&cond[OPN_ATMY_GRP_CD::EQ]=${CHEONAN_ORG_CD}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
   const header = json?.response?.header;
@@ -126,7 +181,7 @@ export async function fetchChildProtectionZones() {
     const url =
       `/api/datagokr/openapi/tn_pubr_public_child_prtc_zn_api?serviceKey=${formatAuthKey(dataGoKrKey)}` +
       `&pageNo=1&numOfRows=300&type=json&insttCode=${CHEONAN_ORG_CD}`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     const items = json?.body?.items?.item || [];
@@ -148,6 +203,15 @@ export async function fetchChildProtectionZones() {
       }))
       .filter((p) => !isNaN(p.lat) && !isNaN(p.lng));
 
+    if (!mapped.length) {
+      return {
+        success: true,
+        items: SAMPLE_CHILD_ZONES,
+        totalCount: SAMPLE_CHILD_ZONES.length,
+        isSample: true,
+      };
+    }
+
     return {
       success: true,
       items: mapped,
@@ -156,8 +220,9 @@ export async function fetchChildProtectionZones() {
   } catch (error) {
     return {
       success: false,
-      items: [],
+      items: SAMPLE_CHILD_ZONES,
       message: error.message,
+      isSample: true,
     };
   }
 }
@@ -180,6 +245,20 @@ export function fetchTrafficLights() {
     success: true,
     items: cheonanTrafficLightsData.items || [],
     totalCount: cheonanTrafficLightsData.totalCount || 0,
+  };
+}
+
+export function getSampleFacilities() {
+  const trafficLightsResult = fetchTrafficLights();
+  return {
+    success: false,
+    fromSample: true,
+    message: '공공데이터포털 연결 실패로 천안 샘플 시설 데이터를 사용합니다.',
+    cctv: SAMPLE_CCTV,
+    speedBump: SAMPLE_SPEED_BUMPS,
+    protectionZones: SAMPLE_CHILD_ZONES,
+    elderProtectionZones: CHEONAN_MOCK_ELDER_ZONES,
+    trafficLights: trafficLightsResult.items || [],
   };
 }
 
@@ -209,22 +288,47 @@ export async function fetchFacilities() {
   ]);
 
   const errors = [];
-  if (cctvRes.status === 'rejected') errors.push(`CCTV: ${cctvRes.reason.message}`);
-  if (bumpRes.status === 'rejected') errors.push(`과속방지턱: ${bumpRes.reason.message}`);
-  if (zoneRes.status === 'rejected' || (zoneRes.status === 'fulfilled' && !zoneRes.value.success)) {
-    errors.push(`어린이보호구역: ${zoneRes.value?.message || zoneRes.reason?.message}`);
+  let usedSample = false;
+
+  const cctv =
+    cctvRes.status === 'fulfilled'
+      ? toPoints(cctvRes.value)
+      : (errors.push(`CCTV: ${cctvRes.reason?.message || '실패'}`),
+        (usedSample = true),
+        SAMPLE_CCTV);
+
+  const speedBump =
+    bumpRes.status === 'fulfilled'
+      ? toPoints(bumpRes.value)
+      : (errors.push(`과속방지턱: ${bumpRes.reason?.message || '실패'}`),
+        (usedSample = true),
+        SAMPLE_SPEED_BUMPS);
+
+  let childProtectionItems = SAMPLE_CHILD_ZONES;
+  if (zoneRes.status === 'fulfilled' && zoneRes.value.items?.length) {
+    childProtectionItems = zoneRes.value.items;
+    if (zoneRes.value.isSample) usedSample = true;
+    if (!zoneRes.value.success) {
+      errors.push(`어린이보호구역: ${zoneRes.value.message || '실패'}`);
+    }
+  } else {
+    errors.push(
+      `어린이보호구역: ${zoneRes.value?.message || zoneRes.reason?.message || '실패'}`
+    );
+    usedSample = true;
   }
 
-  const childProtectionItems =
-    zoneRes.status === 'fulfilled' && zoneRes.value.success ? zoneRes.value.items : [];
   const elderProtectionItems =
     elderRes.status === 'fulfilled' ? elderRes.value.items || [] : CHEONAN_MOCK_ELDER_ZONES;
 
   return {
     success: errors.length === 0,
-    message: errors.join(' / '),
-    cctv: cctvRes.status === 'fulfilled' ? toPoints(cctvRes.value) : null,
-    speedBump: bumpRes.status === 'fulfilled' ? toPoints(bumpRes.value) : null,
+    message: usedSample
+      ? '공공데이터포털 연결 실패로 천안 샘플 시설 데이터를 사용합니다.'
+      : errors.join(' / '),
+    fromSample: usedSample,
+    cctv,
+    speedBump,
     protectionZones: childProtectionItems,
     elderProtectionZones: elderProtectionItems,
     trafficLights: trafficLightsResult.items || [],

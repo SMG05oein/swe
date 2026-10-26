@@ -96,6 +96,22 @@ export default defineConfig({
           });
         },
       },
+      '/api/osrm': {
+        target: 'https://router.project-osrm.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/osrm/, ''),
+        secure: true,
+      },
+      '/api/nominatim': {
+        target: 'https://nominatim.openstreetmap.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/nominatim/, ''),
+        secure: true,
+        headers: {
+          'User-Agent': 'CheonanWalkSafe/1.0 (local-dev)',
+          Accept: 'application/json',
+        },
+      },
     },
   },
 })

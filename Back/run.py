@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-천안시 교통약자 안전 인텔리전스 - 패스트에이피아이(FastAPI) 백엔드 서버
-리액트 프론트엔드 대시보드와 로컬 올라마(Ollama) 인공지능 모델을 실시간 연동하며,
-네트워크 장애나 모델 미기동 시에도 중단 없는 100% 규칙 기반 안전 폴백을 제공합니다.
+천안시 교통약자 보행경로 안전 - FastAPI 백엔드
+경로 유의점(AI)과 관리자 설정/갱신을 제공한다.
 """
+from __future__ import annotations
 
 import os
 import json
 import re
 import httpx
-from typing import List, Optional
-from fastapi import FastAPI, HTTPException
+from typing import Any, List, Optional
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from services import config_store, refresh_job
+
 app = FastAPI(
-    title="천안시 교통약자 안전 인텔리전스 API",
-    version="1.0.0",
-    description="리액트 대시보드와 올라마 LLM을 연동하는 인공지능 진단 백엔드 서비스",
+    title="천안시 교통약자 보행경로 안전 API",
+    version="2.0.0",
+    description="보호자 경로 안전 분석 및 관리자 설정/갱신 백엔드",
 )
 
 # 로컬 개발 및 도커 컨테이너 배포 환경을 위한 CORS 교차 출처 리소스 공유 설정
@@ -40,9 +42,18 @@ app.add_middleware(
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "cheonan-safety")
 FALLBACK_MODEL = os.environ.get("FALLBACK_MODEL", "qwen2.5:7b")
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "change-me-admin-token")
 
 # 동일 지점 반복 조회 시 지연 시간을 없애기 위한 인메모리 캐시 딕셔너리
 cache = {}
+
+config_store.ensure_defaults()
+refresh_job.load_status()
+
+
+def require_admin(token: Optional[str]) -> None:
+    if not token or token != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="관리자 토큰이 올바르지 않습니다.")
 
 
 class DiagnosisRequest(BaseModel):
@@ -341,10 +352,232 @@ async def diagnose_spot(req: DiagnosisRequest):
 
 
 @app.post("/api/cache/clear")
-def clear_cache():
-    """인메모리 캐시 초기화 엔드포인트"""
+def clear_cache(x_admin_token: Optional[str] = Header(default=None)):
+    """인메모리 진단 캐시 초기화 (관리자 전용)"""
+    require_admin(x_admin_token)
     cache.clear()
     return {"status": "success", "message": "캐시가 성공적으로 초기화되었습니다."}
+
+
+class TipsRequest(BaseModel):
+    spot_nm: str
+    category: Optional[str] = "child"
+    district: Optional[str] = "천안시"
+    year: Optional[str] = "2023"
+    checklist_score: Optional[int] = 60
+    missing_labels: Optional[List[str]] = None
+    accident: Optional[bool] = False
+    deaths: Optional[int] = 0
+    serious: Optional[int] = 0
+    minor: Optional[int] = 0
+    casualties: Optional[int] = 0
+    occrrnc_cnt: Optional[int] = 0
+    road_shape: Optional[str] = "일반 교차로 및 단일로"
+    has_zone: Optional[bool] = False
+    cctv_count: Optional[int] = 0
+    bump_count: Optional[int] = 0
+    ped_light_count: Optional[int] = 0
+    countdown_count: Optional[int] = 0
+
+
+class TipsResponse(BaseModel):
+    guardianTips: List[str]
+    pedestrianTips: List[str]
+    source: str
+    diagnosis: Optional[str] = None
+    risk_level: Optional[str] = None
+
+
+FINE_TUNE_SYSTEM = (
+    "당신은 도로교통공단 및 천안시 교통안전 전문 진단 AI 어드바이저입니다. "
+    "교통사고 다발 지점의 실측 사상자 규모와 반경 300m 내 안전시설 결측 데이터를 종합 분석하여 "
+    "위험도 등급, 구조적 원인 진단, 운전자 및 보행약자 맞춤 행동 수칙, 천안시 맞춤 인프라 개선안을 "
+    "엄격한 JSON 규격으로 반환하십시오."
+)
+
+
+def _clean_tip_lines(items: List[str], limit: int = 3) -> List[str]:
+    cleaned: List[str] = []
+    for raw in items:
+        if not raw or len(str(raw).strip()) < 5:
+            continue
+        text = str(raw).strip()
+        if not text.endswith((".", "!", "요", "다", "오", "다.")):
+            text += "."
+        cleaned.append(text)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def map_diagnosis_to_tips(parsed: dict, req: TipsRequest) -> TipsResponse:
+    """Map fine-tuned diagnose JSON → guardian/pedestrian tips for the UI."""
+    diagnosis = str(parsed.get("comprehensive_diagnosis") or "").strip()
+    ped_rules = parsed.get("pedestrian_rules") or []
+    driver_rules = parsed.get("driver_rules") or []
+    infra = parsed.get("infrastructure_recommendations") or []
+    if not isinstance(ped_rules, list):
+        ped_rules = [str(ped_rules)]
+    if not isinstance(driver_rules, list):
+        driver_rules = [str(driver_rules)]
+    if not isinstance(infra, list):
+        infra = [str(infra)]
+
+    who = "어르신" if req.category == "elder" else "어린이"
+    guardian: List[str] = []
+    if diagnosis:
+        guardian.append(diagnosis)
+    guardian.extend(_clean_tip_lines([str(x) for x in ped_rules], 2))
+    if infra:
+        guardian.append(f"보호자 참고: {str(infra[0]).strip()}")
+    if req.missing_labels:
+        guardian.append(
+            f"이 구간은 {', '.join(req.missing_labels)} 데이터가 취약하니 {who}과 함께 횡단할 때 시야를 확보하세요."
+        )
+
+    pedestrian = _clean_tip_lines([str(x) for x in ped_rules], 2)
+    if not pedestrian and driver_rules:
+        pedestrian = _clean_tip_lines([str(x) for x in driver_rules], 2)
+
+    guardian = _clean_tip_lines(guardian, 3)
+    if not guardian:
+        raise ValueError("empty mapped tips")
+
+    return TipsResponse(
+        guardianTips=guardian,
+        pedestrianTips=pedestrian or guardian[:1],
+        source="ollama_ai",
+        diagnosis=diagnosis or None,
+        risk_level=str(parsed.get("risk_level") or "") or None,
+    )
+
+
+@app.post("/api/tips", response_model=TipsResponse)
+async def generate_tips(req: TipsRequest):
+    """Fine-tuned diagnose prompt → map to tips. No default_text fallback."""
+    cache_key = (
+        f"tips_v2:{req.spot_nm}:{req.category}:{req.checklist_score}:"
+        f"{req.deaths}:{req.casualties}:{req.cctv_count}:{req.bump_count}:"
+        f"{req.ped_light_count}:{req.countdown_count}"
+    )
+    cached = cache.get(cache_key)
+    if cached and getattr(cached, "source", None) == "ollama_ai":
+        return cached
+
+    deaths = req.deaths or 0
+    serious = req.serious or 0
+    minor = req.minor or 0
+    casualties = req.casualties or (deaths + serious + minor)
+    occ = req.occrrnc_cnt or casualties
+    severe_rate = round(((deaths + serious) / casualties) * 100) if casualties > 0 else 0
+    target_name = (
+        "보행 노인 교통사고 다발지역"
+        if req.category == "elder"
+        else "어린이보호구역 내 교통사고 다발지역"
+    )
+    missing = ", ".join(req.missing_labels or []) or "특이 결측 없음"
+
+    prompt = (
+        f"지점명: {req.spot_nm}\n"
+        f"권역: {req.district or '천안시'}\n"
+        f"사고유형: {target_name}\n"
+        f"사고통계: 총 사고 {occ}건, 사상자 {casualties}명 "
+        f"(사망 {deaths}명, 중상 {serious}명, 경상 {minor}명, 중상 이상 치명률 {severe_rate}%)\n"
+        f"도로형태: {req.road_shape or '일반 교차로 및 단일로'}\n"
+        f"보호구역 연계: {'보호구역 지정구간' if req.has_zone else '일반 도로구간'}\n"
+        f"주변 5대 시설물 실측 현황 (반경 300m): "
+        f"단속CCTV {req.cctv_count or 0}대, 과속방지턱 {req.bump_count or 0}개, "
+        f"보행신호등 {req.ped_light_count or 0}개, 잔여시간표시기 {req.countdown_count or 0}개, "
+        f"결측 점수 {req.checklist_score or 0}점 "
+        f"({'핵심 안전시설 취약' if (req.checklist_score or 0) < 60 else '안전 인프라 양호'})\n"
+        f"결측시설 요약: {missing}\n"
+        "위 실측 데이터를 근거로만 진단하고, 일반론만 나열하지 마십시오."
+    )
+
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": FINE_TUNE_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        "format": "json",
+        "stream": False,
+        "options": {"temperature": 0.2, "top_p": 0.85, "num_predict": 450},
+    }
+
+    last_error = "unknown"
+    for _ in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(f"{OLLAMA_HOST}/api/chat", json=payload)
+                if resp.status_code != 200:
+                    last_error = f"ollama HTTP {resp.status_code}"
+                    continue
+                content = resp.json().get("message", {}).get("content", "")
+                parsed = extract_json_from_llm(content)
+                if not parsed:
+                    last_error = "invalid json from model"
+                    continue
+                if "comprehensive_diagnosis" not in parsed and "pedestrian_rules" not in parsed:
+                    last_error = "diagnose fields missing"
+                    continue
+                result = map_diagnosis_to_tips(parsed, req)
+                cache[cache_key] = result
+                return result
+        except Exception as exc:
+            last_error = str(exc)
+            continue
+
+    raise HTTPException(
+        status_code=503,
+        detail=f"파인튜닝 모델({OLLAMA_MODEL}) 유의점 생성 실패: {last_error}",
+    )
+
+
+@app.get("/api/admin/config")
+def get_admin_config():
+    return config_store.load_config()
+
+
+@app.put("/api/admin/config")
+def put_admin_config(body: dict[str, Any], x_admin_token: Optional[str] = Header(default=None)):
+    require_admin(x_admin_token)
+    saved = config_store.save_config(body)
+    hours = int(saved.get("refreshIntervalHours") or 24)
+    refresh_job.schedule_periodic(hours, lambda: refresh_job.run_refresh("schedule"))
+    return saved
+
+
+@app.post("/api/admin/refresh")
+def post_admin_refresh(
+    body: Optional[dict[str, Any]] = None,
+    x_admin_token: Optional[str] = Header(default=None),
+):
+    require_admin(x_admin_token)
+    snapshot = (body or {}).get("snapshot")
+    status = refresh_job.run_refresh("manual", snapshot=snapshot)
+    cache.clear()
+    return status
+
+
+@app.get("/api/admin/refresh/status")
+def get_refresh_status():
+    return refresh_job.load_status()
+
+
+@app.get("/api/data/cache")
+def get_data_cache():
+    cached = refresh_job.load_cache()
+    if not cached:
+        return {"available": False, "data": None}
+    return {"available": True, "data": cached}
+
+
+@app.on_event("startup")
+def on_startup():
+    cfg = config_store.load_config()
+    hours = int(cfg.get("refreshIntervalHours") or 24)
+    refresh_job.schedule_periodic(hours, lambda: refresh_job.run_refresh("schedule"))
 
 
 if __name__ == "__main__":

@@ -10,6 +10,10 @@ services:
     environment:
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=cheonan-safety
+      - FALLBACK_MODEL=qwen2.5:7b
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-change-me-admin-token}
+    volumes:
+      - ./Back/data:/app/data
     depends_on:
       - ollama
     restart: unless-stopped

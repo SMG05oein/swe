@@ -11,6 +11,18 @@
     {
       "source": "/api/datagokr/:path*",
       "destination": "https://api.data.go.kr/:path*"
+    },
+    {
+      "source": "/api/osrm/:path*",
+      "destination": "https://router.project-osrm.org/:path*"
+    },
+    {
+      "source": "/api/nominatim/:path*",
+      "destination": "https://nominatim.openstreetmap.org/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }

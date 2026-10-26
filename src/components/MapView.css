@@ -6,6 +6,26 @@
   overflow: hidden;
 }
 
+.map-section.picking .map-container {
+  cursor: crosshair;
+}
+
+.map-pick-hint {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid #f59e0b;
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
 .map-container {
   position: absolute;
   top: 0;

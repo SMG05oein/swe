@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "id": "cctv", "label": "CCTV", "weight": 25, "facilityKey": "cctv" },
+    { "id": "speed_bump", "label": "과속방지턱", "weight": 25, "facilityKey": "speedBump" },
+    { "id": "ped_light", "label": "보행신호등", "weight": 25, "facilityKey": "pedestrianLight" },
+    { "id": "countdown", "label": "잔여시간표시기", "weight": 25, "facilityKey": "countdown" }
+  ],
+  "passThreshold": 60,
+  "routeGrade": { "safeMax": 0, "cautionMax": 2 },
+  "corridorMeters": 80,
+  "refreshIntervalHours": 24
+}

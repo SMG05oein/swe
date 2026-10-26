@@ -1,137 +1,160 @@
-# 스마트 교통약자 안전 인텔리전스 대시보드 (SWE)
+# 교통약자 보행경로 안전 서비스 (SWE)
 
-React 19와 FastAPI, 그리고 온디바이스 로컬 LLM(Qwen2.5-7B 파인튜닝) 기반의 천안시 교통약자(어린이·노인) 안전 인텔리전스 시스템입니다.
-공공데이터포털(`apis.data.go.kr`)과 도로교통공단 실시간 OpenAPI, 천안시 실측 교통안전 인프라 빅데이터를 통합 분석하고, 파인튜닝된 AI 모델을 통해 지점별 구조적 사고 원인 진단과 맞춤형 교통안전 대책을 실시간으로 도출합니다.
+보호자가 어린이·노인의 보행 경로가 안전한지 미리 확인하고, 관리자가 공공데이터 갱신과 체크리스트 평가 기준을 관리하는 웹 서비스입니다. 서비스 권역은 천안시(신부동·두정동)를 중심으로 합니다.
 
----
+## 기술 스택
 
-## 🛠️ 기술 스택 및 아키텍처
+| 구분 | 구성 |
+| --- | --- |
+| 프론트엔드 | React 19, Vite, react-router-dom, Leaflet (OSM) |
+| 백엔드 | FastAPI, Ollama (`cheonan-safety` 파인튜닝 모델) |
+| 데이터 | 도로교통공단·공공데이터포털 (Vite 프록시), OSRM 보행 경로, Nominatim 장소검색 |
+| 인프라 | Docker Compose (`backend` + `ollama`) |
 
-### 1. Frontend
-- **Framework**: React 19, Vite
-- **Mapping & GIS**: Leaflet (OpenStreetMap 기반 다크 테마 커스텀 타일)
-- **Styling**: Vanilla CSS (Cyber/Navy 다크 테마 디자인 시스템, Glassmorphism, 반응형 레이아웃)
+## 주요 기능
 
-### 2. Backend & AI Intelligence
-- **Backend API**: FastAPI 0.110+ (Python 3.12, Uvicorn, 인메모리 고속 캐싱 엔진)
-- **LLM Engine**: Ollama (Docker 컨테이너, NVIDIA GPU VRAM 가속 및 시스템 RAM 하이브리드 오프로딩)
-- **AI Model**: Qwen2.5-7B-Instruct 4-bit QLoRA 파인튜닝 모델 (`cheonan-safety`)
-  - Google Colab(T4 GPU)에서 천안시 실측 사고 데이터 및 5대 안전시설 결측 통계 기반 정밀 지도 학습
-  - GGUF 양자화 변환 후 로컬 Docker 환경에서 실시간 추론 연동
+### 보호자 화면 (`/`)
 
-### 3. Container & Deployment
-- **Containerization**: Docker & Docker Compose v2
-- **Services**:
-  - `backend` (FastAPI REST API, 포트 `8000`)
-  - `ollama` (Ollama 추론 서버, 포트 `11434`, GPU 리소스 예약)
+- 교통약자 유형 선택 (어린이 / 노인)
+- 출발지·도착지 지정 (장소 검색 또는 지도 클릭)
+- 보행 경로 표시, 거리·보행 예상 소요시간
+- 경로 주변 위험 구역 개수·목록 (사고다발지역 또는 체크리스트 미달 보호구역)
+- 경로 위험 등급 (안전 / 주의 / 위험)
+- 위험 회피 대체 경로 요청 및 경로 비교(카드 클릭으로 지도 전환)
+- 구역 상세: 체크리스트·사고 통계·AI 유의점
+- 지도 레이어 ON/OFF (어린이보호구역, 실버존, 사고다발지역), 사고 연도 선택
+- 사이드바 너비 드래그 조절
 
----
+### 관리자 화면 (`/admin`)
 
-## 🚀 주요 기능
+- `ADMIN_TOKEN`으로 입장
+- 체크리스트 항목·가중치·합격 기준·경로 등급 임계값·갱신 주기 변경
+- 공공데이터 수동 갱신 및 상태 확인
 
-### 1. 온디바이스 파인튜닝 AI 안전 인텔리전스 진단 (신규)
-- **실시간 AI 심층 진단**: 다발 지점의 실측 사고 사상자(사망·중상·치명률)와 반경 300m 내 5대 시설물 결측 데이터를 기반으로 LLM이 2~3문장의 구조적 원인 진단 실시간 생성
-- **맞춤형 행동 수칙 도출**: 운전자(감속·일시정지·사각지대 확인) 및 보행약자(어린이·고령자 횡단) 맞춤 행동 가이드라인 생성
-- **천안시 시설 개선안 권고**: 신호 잔여시간표시기, 고원식 과속방지턱, 바닥형 보행신호등 등 천안시 행정에 건의할 인프라 보강안 제시
-- **무장애 자동 폴백(Fallback)**: AI 서버 미기동 또는 네트워크 지연 시 100% 규칙 기반 알고리즘으로 즉시 자동 전환되어 서비스 중단 방지
-- **초고속 인메모리 캐싱**: 동일 지점 재조회 시 0.001초 이내 즉시 응답
+### 안전·예외 처리
 
-### 2. 취약계층 2대 사고다발지역 실시간 공간 분석
-- **보행 노인 사고**: 고령 보행자 교통사고 다발지역 (`frequentzoneOldman`)
-- **어린이 사고**: 어린이 보호구역 내 사고 (`schoolzoneChild`) 및 보행 어린이 사고 (`frequentzoneChild`)
-- **법규위반 사고**: 신호위반 및 중앙선침범 다발구역 분석
+- 체크리스트: 데이터 없는 항목은 **감점하지 않고** `정보 없음`으로 표시
+- AI는 유의점 문장만 생성하며 **점수를 바꾸지 않음**
+- 유의점은 파인튜닝 모델(`cheonan-safety`)의 진단 형식 프롬프트로 생성 (일반 기본문구 폴백 없음)
+- 공공데이터포털 장애 시 천안 샘플 사고·시설 데이터로 서비스 계속, 상단에 안내 배너 표시
 
-### 3. 다개년 통계 연도 조회 (2012년 ~ 2025년)
-- 2012년부터 2025년까지 개별 연도 선택 조회
-- 최근 3개년(2022~2024년) 및 2012~2025년 전체 통합 조회 지원
+## 빠른 시작
 
-### 4. 천안시 5대 안전시설 결측도 정밀 매핑
-- 천안시 단속·방범 CCTV, 감속 과속방지턱, 보행신호등, 잔여시간표시기, 보호구역 연계 공간 분석
-- 5대 안전시설 구비 여부 기반 인프라 결측 진단 점수(0~100점) 자동 산출
+### 1. 환경 변수
 
-### 5. 세부 심층 분석 모달
-- 인명 피해 심각도 및 치명률 바 차트 시각화
-- 시설물 구비/결측 체크리스트 및 도로 기하구조 분석
-
----
-
-## 💻 빠른 시작 가이드 (Quick Start)
-
-### 1. 프론트엔드 실행
+`.env.example`을 복사해 `.env`를 만들고 키를 넣습니다.
 
 ```bash
-# 의존성 설치
+copy .env.example .env
+```
+
+주요 키:
+
+- `VITE_DATA_GO_KR_API_KEY` / `VITE_KOROAD_AUTH_KEY` — 공공데이터·도로교통공단
+- `ADMIN_TOKEN` — 관리자 화면·관리 API
+- `OLLAMA_HOST`, `OLLAMA_MODEL` — 기본값 `cheonan-safety`
+
+실제 키는 커밋하지 마세요.
+
+### 2. 프론트엔드
+
+```bash
 npm install
-
-# 환경 변수 파일 생성 (.env.example 복사 후 인증키 설정)
-cp .env.example .env
-
-# 프론트엔드 개발 서버 시작 (기본 포트: 5173)
 npm run dev
 ```
 
-### 2. 백엔드 및 AI 도커(Docker) 컨테이너 실행
+- 주소: http://localhost:5173/
+- 빌드: `npm run build`
+- 린트: `npm run lint`
 
-Docker Desktop이 실행된 상태에서 프로젝트 루트 경로에서 아래 명령어를 실행합니다:
+### 3. 백엔드 + AI (권장: Docker)
+
+```bash
+docker compose up -d
+```
+
+- API: http://localhost:8000/
+- Ollama: http://localhost:11434/
+- 헬스체크: http://localhost:8000/api/health
+
+로컬에서만 백엔드를 띄울 경우:
+
+```bash
+cd Back
+pip install -r requirements.txt
+set ADMIN_TOKEN=change-me-admin-token
+python run.py
+```
+
+Windows PowerShell 예:
 
 ```powershell
-# 백엔드(FastAPI) 및 올라마(Ollama) 컨테이너 빌드 & 백그라운드 실행
-docker compose up -d --build
-
-# (최초 1회 실행) 천안시 파인튜닝 AI 모델 올라마 등록
-docker exec -w /root/ai_models -it cheonan_safety_ollama ollama create cheonan-safety -f Modelfile
+$env:ADMIN_TOKEN="change-me-admin-token"
+python run.py
 ```
 
-> [!NOTE]
-> AI 모델 배포 및 도커 데스크톱 환경 설정에 대한 상세한 가이드는 [`Back/DOCKER_GUIDE.txt`](file:///c:/Work/SWE/Back/DOCKER_GUIDE.txt)를 참조하세요.
+파인튜닝 모델이 Ollama에 등록되어 있어야 유의점이 생성됩니다.
 
----
+```bash
+docker exec -it cheonan_safety_ollama ollama list
+```
 
-## ⚙️ 환경 변수 설정 (`.env`)
+`cheonan-safety`가 보이면 정상입니다. 유의점 생성에는 보통 30~60초 정도 걸릴 수 있습니다.
 
-| 변수명 | 설명 | 비고 |
+## 화면 경로
+
+| 경로 | 설명 |
+| --- | --- |
+| `/` | 보호자 보행경로 안전 화면 |
+| `/admin` | 관리자 설정·데이터 갱신 |
+
+## API 요약 (백엔드)
+
+| 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| `VITE_DATA_GO_KR_API_KEY` | 공공데이터포털(apis.data.go.kr) 일반 인증키 | 필수 |
-| `VITE_KOROAD_AUTH_KEY` | 도로교통공단 포털 인증키 | 보조용 |
+| GET | `/api/health` | Ollama 연결·모델 상태 |
+| POST | `/api/tips` | 파인튜닝 모델 기반 유의점 (점수 미포함) |
+| POST | `/api/diagnose` | 기존 지점 진단 API |
+| GET/PUT | `/api/admin/config` | 체크리스트·등급 설정 (PUT은 관리자 토큰) |
+| POST | `/api/admin/refresh` | 데이터 갱신 기록 (관리자 토큰) |
+| GET | `/api/admin/refresh/status` | 갱신 상태 |
+| GET | `/api/data/cache` | 서버 캐시 스냅샷 |
 
----
+관리 API는 헤더 `X-Admin-Token`에 `ADMIN_TOKEN` 값을 넣습니다.
 
-## 📁 프로젝트 구조
+## 프론트 프록시 (개발)
 
-```text
-SWE/
-├── Back/                       # 백엔드 및 AI 서비스
-│   ├── AI/                     # AI 학습 및 모델 정의
-│   │   ├── Modelfile           # Ollama 모델 파라미터 및 프롬프트 정의
-│   │   ├── dataset.jsonl       # 천안시 실측 데이터 기반 학습 데이터셋 (350건)
-│   │   ├── train.jsonl         # 훈련 데이터셋 (297건)
-│   │   ├── valid.jsonl         # 검증 데이터셋 (53건)
-│   │   ├── generate_dataset.py # 데이터셋 자동 생성 스크립트
-│   │   └── train_colab.py      # Google Colab T4 GPU 학습 파이프라인
-│   ├── Dockerfile              # 백엔드 경량 컨테이너 정의 (경량 빌드 최적화)
-│   ├── .dockerignore           # 대용량 모델 파일 전송 방지 설정
-│   ├── DOCKER_GUIDE.txt        # 도커 배포 및 유지보수 상세 가이드
-│   ├── requirements.txt        # 파이썬 의존성 패키지 (FastAPI, Uvicorn, httpx 등)
-│   └── run.py                  # FastAPI 백엔드 서버 및 Ollama 연동/폴백 로직
-├── src/                        # 프론트엔드 React 소스 코드
-│   ├── api/                    # 실시간 OpenAPI 및 AI 백엔드 연동 클라이언트
-│   │   ├── aiApi.js            # FastAPI AI 진단 API 통신 모듈
-│   │   ├── facilitiesApi.js    # 공간 분석 및 시설물 실측 매핑
-│   │   └── trafficApi.js       # 공공데이터포털 실시간 수집 모듈
-│   ├── components/             # UI 컴포넌트 (지도, 카드, 모달 등)
-│   │   ├── DetailModal.jsx     # AI 실시간 진단 모달 컴포넌트
-│   │   └── DetailModal.css     # 모달 및 AI 진단 카드 전용 스타일
-│   └── pages/                  # 메인 대시보드 페이지
-├── docker-compose.yml          # FastAPI + Ollama 컨테이너 오케스트레이션
-└── vite.config.js              # Vite 빌드 및 CORS 리라이트 프록시 설정
+Vite(`vite.config.js`)가 아래 경로를 외부 API로 프록시합니다.
+
+- `/api/datagokr`, `/api/koroad`, `/api/koroad_portal` — 공공데이터·도로교통공단
+- `/api/osrm` — 보행 경로 (경로 기하)
+- `/api/nominatim` — 장소 검색·역지오코딩
+
+보행 예상 시간은 OSRM 소요시간 대신 **보행 속도(어린이·노인)** 기준으로 재산정합니다.
+
+## 프로젝트 구조 (요약)
+
+```
+src/
+  pages/          Main(보호자), Admin(관리자)
+  components/     지도, 경로입력, 위험목록, 상세모달 등
+  domain/         체크리스트·위험구역·경로등급 순수 로직
+  api/            공공데이터·경로·지오코딩·AI·관리자 클라이언트
+  data/           지역 프리셋, 신호등, 샘플 사고 데이터
+Back/
+  run.py          FastAPI 엔트리
+  services/       설정 저장·갱신 잡
+  data/           checklist_config.json 등
+  AI/             파인튜닝 데이터·Modelfile·GGUF
 ```
 
----
+## 알려진 제약
 
-## 🔌 API 명세 요약 (FastAPI 백엔드)
+- 공공데이터포털이 타임아웃되면 실시간 대신 샘플 데이터로 동작합니다.
+- 위험 회피 경로는 위험 지점 우회 웨이포인트 방식이라 최적 다중 대안은 아닙니다.
+- 관리자 인증은 데모용 토큰 방식입니다.
+- AI 유의점은 GPU/CPU 환경에 따라 지연될 수 있습니다.
 
-- **`GET /api/health`**: 백엔드 서버 상태 및 Ollama 연결, 등록된 AI 모델 목록 확인
-- **`POST /api/diagnose`**: 지점별 사고 통계 및 시설물 결측치를 바탕으로 AI 정밀 진단 반환
-  - 요청: `spot_nm`, `district`, `category`, `casualties`, `deaths`, `serious`, `cctv_count`, `bump_count` 등
-  - 응답: `risk_level`, `comprehensive_diagnosis`, `driver_rules`, `pedestrian_rules`, `infrastructure_recommendations`, `source`
-- **`POST /api/cache/clear`**: 서버 인메모리 캐시 초기화
+## 라이선스·데이터 고지
+
+지도 타일·Nominatim·OSRM은 각 서비스 이용 정책을 따릅니다. 공공데이터는 해당 포털·도로교통공단 이용약관을 준수해야 하며, 본 서비스의 안내는 참고용이며 법적 안전 보증이 아닙니다.

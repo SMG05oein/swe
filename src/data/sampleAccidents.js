@@ -1,0 +1,108 @@
+/** Local Cheonan sample accident hotspots used when public APIs time out */
+
+export const SAMPLE_CHILD_SCHOOLZONE = [
+  {
+    spot_nm: '천안동남구 신부동 천안중앙초등학교 앞',
+    la_crd: '36.8198',
+    lo_crd: '127.1568',
+    occrrnc_cnt: '3',
+    caslt_cnt: '4',
+    dth_dnv_cnt: '0',
+    se_dnv_cnt: '1',
+    sl_dnv_cnt: '2',
+    wnd_dnv_cnt: '1',
+    sido_sgg_nm: '충남 천안시동남구',
+    year: '2023',
+    category: 'child_schoolzone',
+    category_name: '어린이 보호구역 교통사고',
+    radius: 300,
+    afos_fid: 'sample-child-sz-1',
+    uniqueKey: 'sample-child-sz-1',
+  },
+  {
+    spot_nm: '천안서북구 두정동 두정초등학교 인근',
+    la_crd: '36.8321',
+    lo_crd: '127.1402',
+    occrrnc_cnt: '2',
+    caslt_cnt: '3',
+    dth_dnv_cnt: '0',
+    se_dnv_cnt: '1',
+    sl_dnv_cnt: '2',
+    wnd_dnv_cnt: '0',
+    sido_sgg_nm: '충남 천안시서북구',
+    year: '2023',
+    category: 'child_schoolzone',
+    category_name: '어린이 보호구역 교통사고',
+    radius: 300,
+    afos_fid: 'sample-child-sz-2',
+    uniqueKey: 'sample-child-sz-2',
+  },
+];
+
+export const SAMPLE_CHILD_GEN = [
+  {
+    spot_nm: '천안동남구 신부동 중앙로 사거리',
+    la_crd: '36.8155',
+    lo_crd: '127.1542',
+    occrrnc_cnt: '4',
+    caslt_cnt: '5',
+    dth_dnv_cnt: '0',
+    se_dnv_cnt: '2',
+    sl_dnv_cnt: '2',
+    wnd_dnv_cnt: '1',
+    sido_sgg_nm: '충남 천안시동남구',
+    year: '2023',
+    category: 'child_gen',
+    category_name: '어린이 교통사고 (보행 어린이)',
+    radius: 300,
+    afos_fid: 'sample-child-gen-1',
+    uniqueKey: 'sample-child-gen-1',
+  },
+];
+
+export const SAMPLE_ELDER = [
+  {
+    spot_nm: '천안동남구 신부동 도솔노인복지회관 인근',
+    la_crd: '36.8245',
+    lo_crd: '127.1560',
+    occrrnc_cnt: '3',
+    caslt_cnt: '4',
+    dth_dnv_cnt: '1',
+    se_dnv_cnt: '1',
+    sl_dnv_cnt: '2',
+    wnd_dnv_cnt: '0',
+    sido_sgg_nm: '충남 천안시동남구',
+    year: '2023',
+    category: 'elder',
+    category_name: '노인 교통사고 (보행 노인)',
+    radius: 100,
+    afos_fid: 'sample-elder-1',
+    uniqueKey: 'sample-elder-1',
+  },
+  {
+    spot_nm: '천안서북구 두정동 봉정로 구간',
+    la_crd: '36.8288',
+    lo_crd: '127.1380',
+    occrrnc_cnt: '2',
+    caslt_cnt: '2',
+    dth_dnv_cnt: '0',
+    se_dnv_cnt: '1',
+    sl_dnv_cnt: '1',
+    wnd_dnv_cnt: '0',
+    sido_sgg_nm: '충남 천안시서북구',
+    year: '2023',
+    category: 'elder',
+    category_name: '노인 교통사고 (보행 노인)',
+    radius: 100,
+    afos_fid: 'sample-elder-2',
+    uniqueKey: 'sample-elder-2',
+  },
+];
+
+export function getSampleAccidents() {
+  return {
+    childSchoolzone: SAMPLE_CHILD_SCHOOLZONE,
+    childGen: SAMPLE_CHILD_GEN,
+    elder: SAMPLE_ELDER,
+  };
+}
