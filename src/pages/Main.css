@@ -611,3 +611,196 @@ body.is-sidebar-resizing {
   }
 }
 
+/* 페르소나별 연령 맞춤 테마 & 탭 내비게이션 */
+.sidebar-persona-banner {
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.persona-child .sidebar-persona-banner {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(16, 185, 129, 0.1));
+  border-bottom-color: rgba(245, 158, 11, 0.3);
+}
+
+.persona-elder .sidebar-persona-banner {
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.2), rgba(56, 189, 248, 0.15));
+  border-bottom-color: rgba(251, 146, 60, 0.4);
+}
+
+.persona-indicator {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.persona-child .persona-indicator {
+  color: #fbbf24;
+}
+
+.persona-elder .persona-indicator {
+  color: #fdba74;
+  font-size: 13.5px;
+}
+
+.sidebar-tab-nav {
+  display: flex;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid #1e293b;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+}
+
+.sidebar-tab-btn {
+  flex: 1;
+  padding: 12px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease-in-out;
+  min-height: 44px;
+}
+
+.sidebar-tab-btn:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.persona-child .sidebar-tab-btn.active {
+  color: #fbbf24;
+  border-bottom-color: #fbbf24;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.persona-elder .sidebar-tab-btn.active {
+  color: #fdba74;
+  border-bottom-color: #fb923c;
+  background: rgba(251, 146, 60, 0.12);
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.sidebar-tab-count {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 700;
+}
+
+.tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.empty-checklist-notice {
+  margin: 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.goto-tab-btn,
+.open-detail-modal-btn {
+  width: calc(100% - 32px);
+  margin: 10px 16px 16px;
+  padding: 11px 16px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.goto-tab-btn:hover,
+.open-detail-modal-btn:hover {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #fff;
+}
+
+/* 어르신 모드 전역 가독성 고대비 및 대형 터치 지원 */
+.persona-elder {
+  font-size: 15px;
+}
+
+.persona-elder .rip-title,
+.persona-elder .hl-head h3,
+.persona-elder .card-title {
+  font-size: 17px !important;
+  color: #f8fafc !important;
+}
+
+.persona-elder .rip-sub,
+.persona-elder .check-item-desc {
+  font-size: 13px !important;
+  color: #cbd5e1 !important;
+}
+
+.persona-elder button {
+  min-height: 48px !important;
+}
+
+.persona-elder input {
+  font-size: 15px !important;
+  padding: 12px 14px !important;
+}
+
+.checklist-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.checklist-score-tag {
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+.checklist-score-tag strong {
+  color: #38bdf8;
+  font-size: 13px;
+}
+
+.checklist-persona-tag {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+}
+
+.persona-child .checklist-persona-tag {
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.persona-elder .checklist-persona-tag {
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.4);
+  font-size: 12px;
+}
+
+
+
