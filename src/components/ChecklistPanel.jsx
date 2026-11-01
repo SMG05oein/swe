@@ -15,6 +15,7 @@ export default function ChecklistPanel({
   facilities,
   checklistResult = null,
   config = DEFAULT_CHECKLIST_CONFIG,
+  vulnerableType = 'child',
 }) {
   if (!spot) return null;
 
@@ -42,18 +43,33 @@ export default function ChecklistPanel({
         speedBump: countWithin(facilities.speedBump, lat, lng, radius),
         pedestrianLight: lights.pedestrianCount,
         countdown: lights.countdownCount,
+        safetyFence: countWithin(facilities.safetyFence, lat, lng, radius),
+        yellowCarpet: countWithin(facilities.yellowCarpet, lat, lng, radius),
+        schoolZoneCamera: countWithin(facilities.schoolZoneCamera, lat, lng, radius),
+        acousticSignal: countWithin(facilities.acousticSignal, lat, lng, radius),
+        floorLight: countWithin(facilities.floorLight, lat, lng, radius),
+        barrierFree: countWithin(facilities.barrierFree, lat, lng, radius),
+        smartShelter: countWithin(facilities.smartShelter, lat, lng, radius),
       },
-      config
+      config,
+      { persona: vulnerableType }
     );
   }
 
   return (
     <div className="panel-card">
       <div className="card-header-line">
-        <div className="card-title">체크리스트 ({result.score}점)</div>
+        <div className="card-title">
+          체크리스트 ({result.score}점)
+        </div>
         <span style={{ fontSize: '11px', color: result.grade === 'pass' ? '#34d399' : '#fbbf24' }}>
           {result.grade === 'pass' ? '기준 충족' : '기준 미달'}
         </span>
+      </div>
+      <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', marginBottom: '8px' }}>
+        <span>{result.persona === 'elder' ? '어르신' : '어린이'} 맞춤</span>
+        {result.title ? ` · ${result.title}` : ''}
+        {result.iteration ? ` (${result.iteration}단계)` : ''}
       </div>
       <p className="check-item-desc" style={{ marginBottom: 8 }}>
         데이터가 없는 항목은 감점하지 않고 정보 없음으로 표시합니다.

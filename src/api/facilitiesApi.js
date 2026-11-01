@@ -1,5 +1,6 @@
 import { getApiKeys, formatAuthKey } from './apiClient';
 import cheonanTrafficLightsData from '../data/cheonan_traffic_lights.json';
+import { CHEONAN_ENRICHED_FACILITIES } from '../data/sampleFacilities';
 
 // 공공데이터포털 행정안전부 시설물 API (천안시 개방자치단체코드)
 const CHEONAN_ORG_CD = '4490000';
@@ -332,6 +333,13 @@ export async function fetchFacilities() {
     protectionZones: childProtectionItems,
     elderProtectionZones: elderProtectionItems,
     trafficLights: trafficLightsResult.items || [],
+    safetyFence: CHEONAN_ENRICHED_FACILITIES.safetyFence,
+    yellowCarpet: CHEONAN_ENRICHED_FACILITIES.yellowCarpet,
+    schoolZoneCamera: CHEONAN_ENRICHED_FACILITIES.schoolZoneCamera,
+    acousticSignal: CHEONAN_ENRICHED_FACILITIES.acousticSignal,
+    floorLight: CHEONAN_ENRICHED_FACILITIES.floorLight,
+    barrierFree: CHEONAN_ENRICHED_FACILITIES.barrierFree,
+    smartShelter: CHEONAN_ENRICHED_FACILITIES.smartShelter,
   };
 }
 

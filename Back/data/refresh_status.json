@@ -1,0 +1,8 @@
+{
+  "running": false,
+  "lastSuccessAt": null,
+  "lastError": null,
+  "lastTriggeredBy": null,
+  "intervalHours": 24,
+  "message": "대기 중"
+}

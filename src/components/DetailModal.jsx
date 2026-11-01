@@ -53,8 +53,16 @@ export default function DetailModal({
             speedBump: countWithin(facilities?.speedBump, lat, lng, radius),
             pedestrianLight: lights.pedestrianCount,
             countdown: lights.countdownCount,
+            safetyFence: countWithin(facilities?.safetyFence, lat, lng, radius),
+            yellowCarpet: countWithin(facilities?.yellowCarpet, lat, lng, radius),
+            schoolZoneCamera: countWithin(facilities?.schoolZoneCamera, lat, lng, radius),
+            acousticSignal: countWithin(facilities?.acousticSignal, lat, lng, radius),
+            floorLight: countWithin(facilities?.floorLight, lat, lng, radius),
+            barrierFree: countWithin(facilities?.barrierFree, lat, lng, radius),
+            smartShelter: countWithin(facilities?.smartShelter, lat, lng, radius),
           },
-          checklistConfig
+          checklistConfig,
+          { persona: vulnerableType || spot.category || 'child' }
         );
 
       const missing = checklist.items
@@ -151,8 +159,16 @@ export default function DetailModal({
         speedBump: countWithin(facilities?.speedBump, lat, lng, radius),
         pedestrianLight: lights.pedestrianCount,
         countdown: lights.countdownCount,
+        safetyFence: countWithin(facilities?.safetyFence, lat, lng, radius),
+        yellowCarpet: countWithin(facilities?.yellowCarpet, lat, lng, radius),
+        schoolZoneCamera: countWithin(facilities?.schoolZoneCamera, lat, lng, radius),
+        acousticSignal: countWithin(facilities?.acousticSignal, lat, lng, radius),
+        floorLight: countWithin(facilities?.floorLight, lat, lng, radius),
+        barrierFree: countWithin(facilities?.barrierFree, lat, lng, radius),
+        smartShelter: countWithin(facilities?.smartShelter, lat, lng, radius),
       },
-      checklistConfig
+      checklistConfig,
+      { persona: vulnerableType || spot.category || 'child' }
     );
 
   const childZones = findProtectionZonesWithin(facilities?.protectionZones, lat, lng, radius);

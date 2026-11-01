@@ -18,13 +18,19 @@ export function distanceToRouteMeters(lat, lng, path) {
 }
 
 function facilityCountsAt(facilities, lat, lng, radius = 150) {
+  const lights = findTrafficLightsWithin(facilities?.trafficLights, lat, lng, radius);
   return {
     cctv: countWithin(facilities?.cctv, lat, lng, radius),
     speedBump: countWithin(facilities?.speedBump, lat, lng, radius),
-    pedestrianLight: findTrafficLightsWithin(facilities?.trafficLights, lat, lng, radius)
-      .pedestrianCount,
-    countdown: findTrafficLightsWithin(facilities?.trafficLights, lat, lng, radius)
-      .countdownCount,
+    pedestrianLight: lights.pedestrianCount,
+    countdown: lights.countdownCount,
+    safetyFence: countWithin(facilities?.safetyFence, lat, lng, radius),
+    yellowCarpet: countWithin(facilities?.yellowCarpet, lat, lng, radius),
+    schoolZoneCamera: countWithin(facilities?.schoolZoneCamera, lat, lng, radius),
+    acousticSignal: countWithin(facilities?.acousticSignal, lat, lng, radius),
+    floorLight: countWithin(facilities?.floorLight, lat, lng, radius),
+    barrierFree: countWithin(facilities?.barrierFree, lat, lng, radius),
+    smartShelter: countWithin(facilities?.smartShelter, lat, lng, radius),
   };
 }
 
@@ -37,6 +43,7 @@ export function findHazardsNearRoute({
   protectionZones = [],
   facilities,
   config,
+  vulnerableType = 'child',
   corridorMeters,
 }) {
   const corridor = corridorMeters ?? config?.corridorMeters ?? 80;
@@ -54,7 +61,11 @@ export function findHazardsNearRoute({
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const checklist = evaluateChecklist(facilityCountsAt(facilities, lat, lng), config);
+    const checklist = evaluateChecklist(
+      facilityCountsAt(facilities, lat, lng),
+      config,
+      { persona: vulnerableType }
+    );
 
     hazards.push({
       id: key,
@@ -76,7 +87,11 @@ export function findHazardsNearRoute({
     const dist = distanceToRouteMeters(lat, lng, path);
     if (dist > corridor + 50) continue;
 
-    const checklist = evaluateChecklist(facilityCountsAt(facilities, lat, lng), config);
+    const checklist = evaluateChecklist(
+      facilityCountsAt(facilities, lat, lng),
+      config,
+      { persona: vulnerableType }
+    );
     if (checklist.grade !== 'fail') continue;
 
     const key = `zone:${zone.name}:${lat}:${lng}`;

@@ -214,8 +214,9 @@ export default function Main() {
         protectionZones: allProtectionZones,
         facilities,
         config: checklistConfig,
+        vulnerableType,
       }),
-    [accidents, allProtectionZones, facilities, checklistConfig]
+    [accidents, allProtectionZones, facilities, checklistConfig, vulnerableType]
   );
 
   const handleSearchRoute = async () => {
@@ -437,6 +438,7 @@ export default function Main() {
                 facilities={facilities}
                 checklistResult={selectedHazard.checklist}
                 config={checklistConfig}
+                vulnerableType={vulnerableType}
               />
             </div>
           )}

@@ -18,11 +18,12 @@ export default function Admin() {
   const [status, setStatus] = useState(null);
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState('child');
 
   const load = async () => {
     try {
       const [cfg, st] = await Promise.all([fetchChecklistConfig(), fetchRefreshStatus()]);
-      setConfig(cfg);
+      setConfig({ ...DEFAULT_CHECKLIST_CONFIG, ...cfg });
       setStatus(st);
     } catch (e) {
       setMessage(e.message || '설정을 불러오지 못했습니다. 백엔드(8000)를 확인하세요.');
@@ -72,6 +73,25 @@ export default function Admin() {
       const items = [...(prev.items || [])];
       items[index] = { ...items[index], ...patch };
       return { ...prev, items };
+    });
+  };
+
+  const currentPersonaData = config.personas?.[selectedPersona] || DEFAULT_CHECKLIST_CONFIG.personas?.[selectedPersona];
+  const activeIterNum = currentPersonaData?.activeIteration || 5;
+  const currentIterData =
+    currentPersonaData?.iterations?.find((it) => it.iteration === activeIterNum) ||
+    currentPersonaData?.iterations?.[currentPersonaData.iterations.length - 1];
+
+  const updatePersonaIteration = (personaKey, iterNum) => {
+    setConfig((prev) => {
+      const personas = { ...(prev.personas || DEFAULT_CHECKLIST_CONFIG.personas) };
+      if (personas[personaKey]) {
+        personas[personaKey] = {
+          ...personas[personaKey],
+          activeIteration: Number(iterNum),
+        };
+      }
+      return { ...prev, personas };
     });
   };
 
@@ -136,7 +156,86 @@ export default function Admin() {
       </section>
 
       <section className="admin-card">
-        <h2>체크리스트 항목 · 가중치</h2>
+        <h2>페르소나별 5단계 고도화 평가표 설정</h2>
+        <p className="admin-help">
+          각 페르소나(어린이, 어르신, 관리자)별로 1~5회차 고도화 평가표를 선택하고 적용할 단계를 지정합니다.
+        </p>
+        <div className="admin-row" style={{ gap: '8px', marginBottom: '14px' }}>
+          {[
+            { key: 'child', label: '어린이 보호자' },
+            { key: 'elder', label: '어르신 보호자' },
+            { key: 'admin', label: '교통안전 관리자' },
+          ].map((tab) => (
+            <button
+              type="button"
+              key={tab.key}
+              style={{
+                background: selectedPersona === tab.key ? '#0284c7' : '#1e293b',
+                color: selectedPersona === tab.key ? '#fff' : '#94a3b8',
+                border: '1px solid #334155',
+              }}
+              onClick={() => setSelectedPersona(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {currentPersonaData && (
+          <div style={{ background: '#0f172a', padding: '14px', borderRadius: '8px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <strong>{currentPersonaData.name} 적용 단계 (1~5단계)</strong>
+              <select
+                value={activeIterNum}
+                onChange={(e) => updatePersonaIteration(selectedPersona, e.target.value)}
+                style={{
+                  background: '#020617',
+                  color: '#e2e8f0',
+                  border: '1px solid #334155',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                }}
+              >
+                {(currentPersonaData.iterations || []).map((it) => (
+                  <option key={it.iteration} value={it.iteration}>
+                    {it.iteration}단계: {it.title} (합격 {it.passThreshold}점)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {currentIterData && (
+              <div>
+                <p style={{ fontSize: '13px', color: '#38bdf8', margin: '4px 0 10px' }}>
+                  현재 적용 지표 ({currentIterData.items?.length || 0}개 항목 / 기준 {currentIterData.passThreshold}점):
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+                  {(currentIterData.items || []).map((it) => (
+                    <div
+                      key={it.id}
+                      style={{
+                        background: '#1e293b',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        border: '1px solid #334155',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: '#f8fafc' }}>{it.label}</div>
+                      <div style={{ color: '#94a3b8' }}>
+                        가중치: {it.weight}점 · <code>{it.facilityKey}</code>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="admin-card">
+        <h2>기본 체크리스트 항목 · 가중치 (글로벌)</h2>
         {(config.items || []).map((item, idx) => (
           <div className="admin-item" key={item.id || idx}>
             <input
