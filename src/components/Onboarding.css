@@ -1,0 +1,250 @@
+/* 앱 소개 — 토스식 큰 제목 + 그림 + 하단 버튼. 모바일은 전체 화면, 데스크톱은 가운데 카드 */
+
+.gd-app .ob-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+  animation: ob-fade 0.2s ease;
+}
+
+.gd-app .ob-sheet {
+  width: 440px;
+  height: min(720px, calc(100dvh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--gd-surface);
+  border-radius: 24px;
+  box-shadow: var(--gd-shadow-md);
+  overflow: hidden;
+}
+
+.gd-app .ob-header {
+  height: 56px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.gd-app .ob-header-space {
+  width: 36px;
+}
+
+.gd-app .ob-skip {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  color: var(--gd-text-3);
+}
+
+.gd-app .ob-skip:hover {
+  background: var(--gd-surface-2);
+  color: var(--gd-text-2);
+}
+
+.gd-app .ob-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 28px 0;
+  overflow-y: auto;
+}
+
+.gd-app .ob-content.slide-next {
+  animation: ob-in-right 0.28s ease;
+}
+
+.gd-app .ob-content.slide-prev {
+  animation: ob-in-left 0.28s ease;
+}
+
+.gd-app .ob-title {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.38;
+  letter-spacing: -0.02em;
+  white-space: pre-line;
+  color: var(--gd-text);
+}
+
+.gd-app .ob-body {
+  margin-top: 12px;
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  color: var(--gd-text-2);
+}
+
+.gd-app .ob-art-wrap {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+
+.gd-app .ob-art {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+}
+
+.gd-app .ob-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.gd-app .ob-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1.5px solid var(--gd-border);
+  background: var(--gd-surface);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.gd-app .ob-choice:hover {
+  border-color: var(--gd-border-strong);
+}
+
+.gd-app .ob-choice.selected {
+  border-color: var(--gd-accent);
+  background: var(--gd-accent-soft);
+}
+
+.gd-app .ob-choice-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--gd-surface-2);
+  color: var(--gd-text);
+}
+
+.gd-app .ob-choice.selected .ob-choice-icon {
+  background: var(--gd-accent);
+  color: #fff;
+}
+
+.gd-app .ob-choice-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gd-app .ob-choice-label {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.gd-app .ob-choice-desc {
+  font-size: var(--fs-sm);
+  color: var(--gd-text-2);
+}
+
+.gd-app .ob-radio {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--gd-border-strong);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.gd-app .ob-choice.selected .ob-radio {
+  background: var(--gd-accent);
+  border-color: var(--gd-accent);
+}
+
+.gd-app .ob-footer {
+  flex-shrink: 0;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.gd-app .ob-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.gd-app .ob-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gd-border-strong);
+  transition: width 0.2s, background 0.2s;
+}
+
+.gd-app .ob-dots span.active {
+  width: 18px;
+  background: var(--gd-text);
+}
+
+.gd-app .ob-next {
+  height: 54px;
+  border-radius: 14px;
+  font-size: var(--fs-lg);
+}
+
+@keyframes ob-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ob-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes ob-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-app .ob-backdrop,
+  .gd-app .ob-content.slide-next,
+  .gd-app .ob-content.slide-prev {
+    animation: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .gd-app .ob-backdrop {
+    background: var(--gd-surface);
+  }
+
+  .gd-app .ob-sheet {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .gd-app .ob-content {
+    padding: 8px 24px 0;
+  }
+}

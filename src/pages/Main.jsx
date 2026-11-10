@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import './Main.css';
-import GNB from '../components/GNB';
+import TopBar from '../components/TopBar';
 import MapView from '../components/MapView';
-import RouteInputPanel from '../components/RouteInputPanel';
+import RouteSearchBox from '../components/RouteSearchBox';
+import RouteResults from '../components/RouteResults';
 import HazardList from '../components/HazardList';
-import RouteCompare from '../components/RouteCompare';
+import HazardDetail from '../components/HazardDetail';
 import ApiKeyModal from '../components/ApiKeyModal';
-import DetailModal from '../components/DetailModal';
-import ChecklistPanel from '../components/ChecklistPanel';
+import Onboarding from '../components/Onboarding';
+import { hasSeenOnboarding, readSavedPersona, savePersona } from '../components/onboardingStorage';
+import Icon from '../components/Icon';
 import { REGION_PRESETS } from '../data/regions';
 import {
   fetchChildAccidents,
@@ -22,28 +23,24 @@ import { reverseGeocode } from '../api/geocodeApi';
 import { fetchChecklistConfig, fetchCachedPublicData } from '../api/adminApi';
 import { DEFAULT_CHECKLIST_CONFIG } from '../domain/checklist';
 import { findHazardsNearRoute, avoidWaypointFromHazards } from '../domain/hazards';
-import { gradeRoute, formatDistance, formatDuration } from '../domain/routeGrade';
+import { gradeRoute } from '../domain/routeGrade';
+import { segmentRouteByHazards } from '../domain/routeSegments';
 import { getSampleAccidents } from '../data/sampleAccidents';
 
-const SIDEBAR_WIDTH_KEY = 'swe_sidebar_width';
-const SIDEBAR_MIN = 280;
-const SIDEBAR_MAX = 640;
-const SIDEBAR_DEFAULT = 380;
-
-function readSidebarWidth() {
-  const raw = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
-  if (!Number.isFinite(raw)) return SIDEBAR_DEFAULT;
-  return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, raw));
-}
+const SHEET_STATES = ['peek', 'half', 'full'];
 
 export default function Main() {
-  const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
-  const [isResizing, setIsResizing] = useState(false);
-  const layoutRef = useRef(null);
   const [currentRegion, setCurrentRegion] = useState('shinbu');
   const [selectedYear, setSelectedYear] = useState('2023');
-  const [vulnerableType, setVulnerableType] = useState('child');
-  const [sidebarTab, setSidebarTab] = useState('route');
+  const [vulnerableType, setVulnerableTypeState] = useState(readSavedPersona);
+  const setVulnerableType = useCallback((persona) => {
+    setVulnerableTypeState(persona);
+    savePersona(persona);
+  }, []);
+  const [showDetail, setShowDetail] = useState(false);
+  const [sheet, setSheet] = useState('half');
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [showIntro, setShowIntro] = useState(() => !hasSeenOnboarding());
   const [origin, setOrigin] = useState(null);
   const [destination, setDestination] = useState(null);
   const [pickMode, setPickMode] = useState(null);
@@ -64,7 +61,6 @@ export default function Main() {
   const [statusMsg, setStatusMsg] = useState('데이터 불러오는 중...');
   const [usingCache, setUsingCache] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const [keys, setKeys] = useState({ koroadKey: '', dataGoKrKey: '' });
   const [facilities, setFacilities] = useState({ loading: true });
   const [checklistConfig, setChecklistConfig] = useState(DEFAULT_CHECKLIST_CONFIG);
@@ -220,23 +216,30 @@ export default function Main() {
     [accidents, allProtectionZones, facilities, checklistConfig, vulnerableType]
   );
 
+  const resetSelection = () => {
+    setSelectedHazard(null);
+    setShowDetail(false);
+  };
+
   const handleSearchRoute = async () => {
     if (!origin || !destination) return;
     setRouteLoading(true);
     setAltRoute(null);
     setAltHazards([]);
     setActiveRouteKey('primary');
+    setPickMode(null);
     setErrorBanner('');
+    resetSelection();
     try {
       const result = await fetchPedestrianRoute([origin, destination], {
         vulnerableType,
       });
-      const found = analyzePath(result.path);
       setRoute(result);
-      setHazards(found);
-      setSelectedHazard(found[0] || null);
+      setHazards(analyzePath(result.path));
+      setSheet('half');
     } catch (e) {
       setErrorBanner(e.message || '경로를 찾지 못했습니다.');
+      setBannerDismissed(false);
       setRoute(null);
       setHazards([]);
     } finally {
@@ -249,53 +252,84 @@ export default function Main() {
     setAltLoading(true);
     setErrorBanner('');
     try {
-      if (!hazards.length) {
-        setErrorBanner('회피할 위험 구역이 없습니다. 기본 경로와 동일합니다.');
-        setAltRoute(null);
-        setAltHazards([]);
-        return;
-      }
       const via = avoidWaypointFromHazards(origin, destination, hazards);
       const waypoints = via ? [origin, via, destination] : [origin, destination];
       const result = await fetchPedestrianRoute(waypoints, { vulnerableType });
-      const found = analyzePath(result.path);
       setAltRoute(result);
-      setAltHazards(found);
+      setAltHazards(analyzePath(result.path));
       setActiveRouteKey('alt');
-      setSelectedHazard(found[0] || null);
+      resetSelection();
     } catch (e) {
       setErrorBanner(e.message || '대체 경로를 찾지 못했습니다.');
+      setBannerDismissed(false);
     } finally {
       setAltLoading(false);
     }
   };
 
-  const displayHazards = activeRouteKey === 'alt' && altRoute ? altHazards : hazards;
-  const displayRoute = activeRouteKey === 'alt' && altRoute ? altRoute : route;
-  const displayGrade = useMemo(
-    () => gradeRoute(displayHazards.length, checklistConfig),
-    [displayHazards.length, checklistConfig]
+  const isAlt = activeRouteKey === 'alt' && Boolean(altRoute);
+  const displayHazards = isAlt ? altHazards : hazards;
+  const displayRoute = isAlt ? altRoute : route;
+  const otherRoute = altRoute ? (isAlt ? route : altRoute) : null;
+  const routeSegments = useMemo(
+    () => segmentRouteByHazards(displayRoute?.path, displayHazards),
+    [displayRoute, displayHazards]
+  );
+
+  const primarySummary = useMemo(
+    () =>
+      route && {
+        distance: route.distance,
+        duration: route.duration,
+        hazardCount: hazards.length,
+        grade: gradeRoute(hazards.length, checklistConfig),
+      },
+    [route, hazards.length, checklistConfig]
+  );
+  const altSummary = useMemo(
+    () =>
+      altRoute && {
+        distance: altRoute.distance,
+        duration: altRoute.duration,
+        hazardCount: altHazards.length,
+        grade: gradeRoute(altHazards.length, checklistConfig),
+      },
+    [altRoute, altHazards.length, checklistConfig]
   );
 
   const handleSelectComparedRoute = (key) => {
     setActiveRouteKey(key);
-    const list = key === 'alt' ? altHazards : hazards;
-    setSelectedHazard(list[0] || null);
+    resetSelection();
   };
 
-  const handleMapClick = async ({ lat, lng }) => {
-    if (!pickMode) return;
-    try {
-      const place = await reverseGeocode(lat, lng);
-      if (pickMode === 'origin') setOrigin(place);
+  const handleSelectOtherRoute = useCallback(() => {
+    setActiveRouteKey((k) => (k === 'alt' ? 'primary' : 'alt'));
+    setSelectedHazard(null);
+    setShowDetail(false);
+  }, []);
+
+  const handleSelectHazard = useCallback((h) => {
+    setSelectedHazard(h);
+    setShowDetail(true);
+    setSheet((s) => (s === 'peek' ? 'half' : s));
+  }, []);
+
+  const handleMapClick = useCallback(
+    async ({ lat, lng }) => {
+      if (!pickMode) return;
+      const target = pickMode;
+      setPickMode(null);
+      let place;
+      try {
+        place = await reverseGeocode(lat, lng);
+      } catch {
+        place = { lat, lng, name: `${lat.toFixed(5)}, ${lng.toFixed(5)}` };
+      }
+      if (target === 'origin') setOrigin(place);
       else setDestination(place);
-    } catch {
-      const place = { lat, lng, name: `${lat.toFixed(5)}, ${lng.toFixed(5)}` };
-      if (pickMode === 'origin') setOrigin(place);
-      else setDestination(place);
-    }
-    setPickMode(null);
-  };
+    },
+    [pickMode]
+  );
 
   const handleSaveKeys = (newKeys) => {
     saveApiKeys(newKeys);
@@ -306,7 +340,7 @@ export default function Main() {
 
   const detailSpot = useMemo(() => {
     if (!selectedHazard) return null;
-    if (selectedHazard.spot) return selectedHazard.spot;
+    if (selectedHazard.spot) return { ...selectedHazard.spot, _hazardKind: selectedHazard.kind };
     return {
       spot_nm: selectedHazard.name,
       la_crd: selectedHazard.lat,
@@ -319,243 +353,129 @@ export default function Main() {
       sl_dnv_cnt: 0,
       wnd_dnv_cnt: 0,
       occrrnc_cnt: 0,
-      _checklist: selectedHazard.checklist,
       _hazardKind: selectedHazard.kind,
     };
   }, [selectedHazard, vulnerableType]);
 
-  useEffect(() => {
-    if (!isResizing) return undefined;
+  const selectedIndex = selectedHazard
+    ? displayHazards.findIndex((h) => h.id === selectedHazard.id)
+    : -1;
 
-    const onMove = (event) => {
-      const root = layoutRef.current;
-      if (!root) return;
-      const left = root.getBoundingClientRect().left;
-      const next = Math.min(
-        SIDEBAR_MAX,
-        Math.max(SIDEBAR_MIN, event.clientX - left)
-      );
-      setSidebarWidth(next);
-    };
+  const cycleSheet = () => {
+    const i = SHEET_STATES.indexOf(sheet);
+    setSheet(SHEET_STATES[(i + 1) % SHEET_STATES.length]);
+  };
 
-    const onUp = () => {
-      setIsResizing(false);
-      setSidebarWidth((w) => {
-        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round(w)));
-        return w;
-      });
-    };
-
-    document.body.classList.add('is-sidebar-resizing');
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    return () => {
-      document.body.classList.remove('is-sidebar-resizing');
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-  }, [isResizing]);
+  const banner = !bannerDismissed && errorBanner;
 
   return (
-    <div className="main-page guardian-layout">
-      <GNB
-        statusMsg={statusMsg}
-        isMockMode={usingCache}
-        onOpenSettings={() => setShowSettings(true)}
+    <div className={`gd-app persona-${vulnerableType}`}>
+      <TopBar
         currentRegion={currentRegion}
         onSelectRegion={setCurrentRegion}
         currentYear={selectedYear}
         onSelectYear={setSelectedYear}
-        extraActions={<Link className="btn-admin-link" to="/admin">관리자</Link>}
+        statusMsg={statusMsg}
+        isSample={usingCache}
+        isLoading={isAccidentsLoading}
+        onOpenKeys={() => setShowSettings(true)}
+        onOpenIntro={() => setShowIntro(true)}
       />
 
-      {errorBanner && <div className="api-banner">{errorBanner}</div>}
+      <main className="gd-layout">
+        <aside className={`gd-panel sheet-${sheet}`} aria-label="길찾기">
+          <button
+            type="button"
+            className="sheet-handle"
+            aria-label="패널 크기 바꾸기"
+            onClick={cycleSheet}
+          >
+            <span />
+          </button>
 
-      <main
-        className={`main-view guardian-view persona-${vulnerableType} ${isResizing ? 'resizing' : ''}`}
-        ref={layoutRef}
-        style={{ '--sidebar-width': `${sidebarWidth}px` }}
-      >
-        <aside className={`guardian-sidebar persona-${vulnerableType}`}>
-          <div className="sidebar-persona-banner">
-            <span className="persona-indicator">
-              {vulnerableType === 'child' ? '어린이 안심 통학로 모드' : '어르신 고대비 무장애 모드'}
-            </span>
-          </div>
+          {banner && (
+            <div className="notice" role="status">
+              <Icon name="info" size={16} />
+              <span>{banner}</span>
+              <button type="button" aria-label="알림 닫기" onClick={() => setBannerDismissed(true)}>
+                <Icon name="close" size={14} />
+              </button>
+            </div>
+          )}
 
-          <nav className="sidebar-tab-nav" aria-label="사이드바 탭">
-            <button
-              type="button"
-              className={`sidebar-tab-btn ${sidebarTab === 'route' ? 'active' : ''}`}
-              onClick={() => setSidebarTab('route')}
-            >
-              경로 탐색
-            </button>
-            <button
-              type="button"
-              className={`sidebar-tab-btn ${sidebarTab === 'hazards' ? 'active' : ''}`}
-              onClick={() => setSidebarTab('hazards')}
-            >
-              위험 구역
-              {displayHazards.length > 0 && (
-                <span className="sidebar-tab-count">{displayHazards.length}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              className={`sidebar-tab-btn ${sidebarTab === 'checklist' ? 'active' : ''}`}
-              onClick={() => setSidebarTab('checklist')}
-            >
-              안전 점검
-            </button>
-          </nav>
-
-          {sidebarTab === 'route' && (
-            <div className="tab-pane">
-              <RouteInputPanel
+          {showDetail && detailSpot ? (
+            <HazardDetail
+              key={selectedHazard.id}
+              hazard={selectedHazard}
+              index={selectedIndex >= 0 ? selectedIndex : null}
+              spot={detailSpot}
+              facilities={facilities}
+              checklistConfig={checklistConfig}
+              vulnerableType={vulnerableType}
+              onBack={() => setShowDetail(false)}
+            />
+          ) : (
+            <div className="panel-scroll">
+              <RouteSearchBox
                 vulnerableType={vulnerableType}
                 onVulnerableTypeChange={setVulnerableType}
                 origin={origin}
                 destination={destination}
-                pickMode={pickMode}
-                onPickModeChange={setPickMode}
                 onSetOrigin={setOrigin}
                 onSetDestination={setDestination}
-                onSearchRoute={handleSearchRoute}
-                onRequestAlt={handleAltRoute}
+                pickMode={pickMode}
+                onPickModeChange={setPickMode}
+                onSearch={handleSearchRoute}
                 loading={routeLoading}
-                altLoading={altLoading}
-                hasRoute={Boolean(route)}
-                routeMeta={
-                  displayRoute
-                    ? {
-                        distanceLabel: formatDistance(displayRoute.distance),
-                        durationLabel: `${formatDuration(displayRoute.duration)} (보행)`,
-                      }
-                    : null
-                }
-                routeGrade={displayRoute ? displayGrade : null}
-                hazardCount={displayHazards.length}
-                onGoHazards={() => setSidebarTab('hazards')}
               />
-              {route && (
-                <RouteCompare
-                  active={activeRouteKey}
-                  onSelect={handleSelectComparedRoute}
-                  primary={{
-                    distance: route.distance,
-                    duration: route.duration,
-                    hazardCount: hazards.length,
-                  }}
-                  alternative={
-                    altRoute
-                      ? {
-                          distance: altRoute.distance,
-                          duration: altRoute.duration,
-                          hazardCount: altHazards.length,
-                        }
-                      : null
-                  }
-                />
-              )}
-            </div>
-          )}
 
-          {sidebarTab === 'hazards' && (
-            <div className="tab-pane">
-              <HazardList
-                hazards={displayHazards}
-                selectedId={selectedHazard?.id}
-                vulnerableType={vulnerableType}
-                onSelect={(h) => {
-                  setSelectedHazard(h);
-                  setShowDetailModal(true);
-                }}
-                onInspectChecklist={(h) => {
-                  setSelectedHazard(h);
-                  setSidebarTab('checklist');
-                }}
-                grade={displayRoute ? displayGrade : null}
-              />
-            </div>
-          )}
-
-          {sidebarTab === 'checklist' && (
-            <div className="tab-pane">
-              {selectedHazard ? (
-                <div className="sidebar-checklist">
-                  <ChecklistPanel
-                    spot={detailSpot}
-                    facilities={facilities}
-                    checklistResult={selectedHazard.checklist}
-                    config={checklistConfig}
+              {route ? (
+                <>
+                  <RouteResults
+                    primary={primarySummary}
+                    alternative={altSummary}
+                    active={isAlt ? 'alt' : 'primary'}
+                    onSelect={handleSelectComparedRoute}
+                    onRequestAlt={handleAltRoute}
+                    altLoading={altLoading}
                     vulnerableType={vulnerableType}
                   />
-                  <button
-                    type="button"
-                    className="open-detail-modal-btn"
-                    onClick={() => setShowDetailModal(true)}
-                  >
-                    전문 AI 진단 및 개선안 전체 보기
-                  </button>
-                </div>
+                  <HazardList
+                    hazards={displayHazards}
+                    selectedId={selectedHazard?.id}
+                    onSelect={handleSelectHazard}
+                    routeLabel={isAlt ? '회피 경로' : '기본 경로'}
+                  />
+                </>
               ) : (
-                <div className="panel-card empty-checklist-notice">
-                  <p>지도 또는 위험 구역 탭에서 지점을 선택하면 해당 위치의 안전 점검표를 확인할 수 있습니다.</p>
-                  <button
-                    type="button"
-                    className="goto-tab-btn"
-                    onClick={() => setSidebarTab('hazards')}
-                  >
-                    위험 구역 목록 보기
-                  </button>
+                <div className="empty-guide">
+                  <p className="empty-title">
+                    {vulnerableType === 'elder' ? '어르신이' : '아이가'} 걸어갈 길, 미리 확인하세요
+                  </p>
+                  <ol className="empty-steps">
+                    <li>출발지와 도착지를 검색하거나 지도에서 고르세요.</li>
+                    <li>경로 주변의 사고다발지역과 점검 미달 보호구역을 찾아 안전 등급을 매깁니다.</li>
+                    <li>위험 지점을 누르면 안전시설 점검표와 AI 유의점을 볼 수 있습니다.</li>
+                  </ol>
+                  {isAccidentsLoading && <p className="empty-loading">사고·시설 데이터를 불러오는 중…</p>}
                 </div>
               )}
             </div>
           )}
-
-          {isAccidentsLoading && (
-            <p className="sidebar-hint">사고·시설 데이터를 불러오는 중...</p>
-          )}
         </aside>
-
-        <div
-          className="sidebar-resizer"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="사이드바 너비 조절"
-          aria-valuemin={SIDEBAR_MIN}
-          aria-valuemax={SIDEBAR_MAX}
-          aria-valuenow={Math.round(sidebarWidth)}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            setIsResizing(true);
-          }}
-          onDoubleClick={() => {
-            setSidebarWidth(SIDEBAR_DEFAULT);
-            localStorage.setItem(SIDEBAR_WIDTH_KEY, String(SIDEBAR_DEFAULT));
-          }}
-        />
 
         <MapView
           spots={accidents}
           hazards={displayHazards}
           protectionZones={allProtectionZones}
           routePath={displayRoute?.path}
-          altRoutePath={
-            altRoute
-              ? activeRouteKey === 'alt'
-                ? route?.path
-                : altRoute.path
-              : null
-          }
+          routeSegments={routeSegments}
+          altRoutePath={otherRoute?.path}
+          onSelectOtherRoute={handleSelectOtherRoute}
           origin={origin}
           destination={destination}
           selectedHazard={selectedHazard}
-          onSelectHazard={(h) => {
-            setSelectedHazard(h);
-            setShowDetailModal(true);
-          }}
+          onSelectHazard={handleSelectHazard}
           onMapClick={handleMapClick}
           pickMode={pickMode}
           showAccidents={showAccidents}
@@ -565,15 +485,15 @@ export default function Main() {
         />
       </main>
 
-      <DetailModal
-        spot={detailSpot}
-        isOpen={showDetailModal}
-        onClose={() => setShowDetailModal(false)}
-        facilities={facilities}
-        checklistConfig={checklistConfig}
-        precomputedChecklist={selectedHazard?.checklist}
-        vulnerableType={vulnerableType}
-      />
+      {showIntro && (
+        <Onboarding
+          initialPersona={vulnerableType}
+          onFinish={(persona) => {
+            if (persona) setVulnerableType(persona);
+            setShowIntro(false);
+          }}
+        />
+      )}
 
       <ApiKeyModal
         isOpen={showSettings}
