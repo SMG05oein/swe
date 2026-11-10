@@ -86,33 +86,23 @@ npm run dev
 docker compose up -d
 ```
 
+- 실행 시 올라마(Ollama) 기동과 함께 모델 자동 세팅이 진행됩니다:
+  - `Back/AI/`에 GGUF 가중치와 Modelfile이 있으면 `cheonan-safety` 모델을 자동 생성 및 등록합니다.
+  - 로컬 GGUF 파일이 없으면 공식 fallback 모델인 `qwen2.5:7b`를 자동 다운로드(pull)합니다.
+  - 모델 세팅 및 헬스체크가 통과한 후 백엔드 서비스가 자동으로 시작됩니다.
 - API: http://localhost:8000/
 - Ollama: http://localhost:11434/
 - 헬스체크: http://localhost:8000/api/health
 
-로컬에서만 백엔드를 띄울 경우:
-
-```bash
-cd Back
-pip install -r requirements.txt
-set ADMIN_TOKEN=change-me-admin-token
-python run.py
-```
-
-Windows PowerShell 예:
-
-```powershell
-$env:ADMIN_TOKEN="change-me-admin-token"
-python run.py
-```
-
-파인튜닝 모델이 Ollama에 등록되어 있어야 유의점이 생성됩니다.
+동작 상태 확인:
 
 ```bash
 docker exec -it cheonan_safety_ollama ollama list
 ```
 
-`cheonan-safety`가 보이면 정상입니다. 유의점 생성에는 보통 30~60초 정도 걸릴 수 있습니다.
+`cheonan-safety`(또는 fallback 모델)가 보이면 정상입니다. 유의점 생성에는 보통 30~60초 정도 걸릴 수 있습니다.
+
+로컬에서만 백엔드를 띄울 경우:
 
 ## 화면 경로
 
