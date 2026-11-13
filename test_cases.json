@@ -1,0 +1,852 @@
+[
+  {
+    "id": "TC01",
+    "title": "5개 항목 모두 충족",
+    "rule": "6-3 점수 계산",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 30
+      }
+    ],
+    "expected": {
+      "routeGrade": "safe",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 100,
+          "penalty": 0,
+          "score": 100,
+          "grade": "safe",
+          "lowConfidence": false,
+          "items": {
+            "signal": "met",
+            "speed_bump": "met",
+            "speed_limit": "met",
+            "no_street_parking": "met",
+            "camera": "met"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC02",
+    "title": "데이터 없는 항목은 분모에서 제외 + 신뢰도 낮음",
+    "rule": "6-3 결측 처리",
+    "available": [
+      "traffic_light",
+      "speed_bump"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      }
+    ],
+    "expected": {
+      "routeGrade": "caution",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 50,
+          "penalty": 0,
+          "score": 50,
+          "grade": "caution",
+          "lowConfidence": true,
+          "items": {
+            "signal": "met",
+            "speed_bump": "not_met",
+            "speed_limit": "no_data",
+            "no_street_parking": "no_data",
+            "camera": "no_data"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC03",
+    "title": "사고다발지역 2개 연도 선정 → -30점",
+    "rule": "6-3 위험 이력 감점",
+    "available": [
+      "traffic_light",
+      "speed_bump"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      },
+      {
+        "id": "HS-1",
+        "type": "hotspot",
+        "name": "테스트 사고다발지역",
+        "lat": 36.831395,
+        "lng": 127.131,
+        "years": [
+          2021,
+          2022
+        ],
+        "accidentCount": 4
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      }
+    ],
+    "expected": {
+      "routeGrade": "danger",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 50,
+          "penalty": -30,
+          "score": 20,
+          "grade": "danger",
+          "lowConfidence": true,
+          "hotspotIds": [
+            "HS-1"
+          ],
+          "items": {
+            "signal": "met",
+            "speed_bump": "not_met",
+            "speed_limit": "no_data",
+            "no_street_parking": "no_data",
+            "camera": "no_data"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC04",
+    "title": "사고다발지역 1회 선정 → -20점, 80점이어도 최소 주의",
+    "rule": "6-4 최소 주의",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      },
+      {
+        "id": "HS-1",
+        "type": "hotspot",
+        "name": "테스트 사고다발지역",
+        "lat": 36.831395,
+        "lng": 127.131,
+        "years": [
+          2023
+        ],
+        "accidentCount": 2
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 30
+      }
+    ],
+    "expected": {
+      "routeGrade": "caution",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 100,
+          "penalty": -20,
+          "score": 80,
+          "grade": "caution",
+          "lowConfidence": false,
+          "hotspotIds": [
+            "HS-1"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "TC05",
+    "title": "경계값 70점 (100-30) + 최소 주의",
+    "rule": "6-4 등급 경계",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      },
+      {
+        "id": "HS-1",
+        "type": "hotspot",
+        "name": "테스트 사고다발지역",
+        "lat": 36.831395,
+        "lng": 127.131,
+        "years": [
+          2021,
+          2022
+        ],
+        "accidentCount": 4
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 30
+      }
+    ],
+    "expected": {
+      "routeGrade": "caution",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 100,
+          "penalty": -30,
+          "score": 70,
+          "grade": "caution"
+        }
+      }
+    }
+  },
+  {
+    "id": "TC06",
+    "title": "경계값 40점 (60-20) → 주의",
+    "rule": "6-4 등급 경계",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      },
+      {
+        "id": "HS-1",
+        "type": "hotspot",
+        "name": "테스트 사고다발지역",
+        "lat": 36.831395,
+        "lng": 127.131,
+        "years": [
+          2023
+        ],
+        "accidentCount": 2
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.836296,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 30
+      },
+      {
+        "type": "street_parking",
+        "lat": 36.831799,
+        "lng": 127.131
+      }
+    ],
+    "expected": {
+      "routeGrade": "caution",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 60,
+          "penalty": -20,
+          "score": 40,
+          "grade": "caution",
+          "items": {
+            "signal": "met",
+            "speed_bump": "not_met",
+            "speed_limit": "met",
+            "no_street_parking": "not_met",
+            "camera": "met"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC07",
+    "title": "경계값 30점 (60-30) → 위험",
+    "rule": "6-4 등급 경계",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      },
+      {
+        "id": "HS-1",
+        "type": "hotspot",
+        "name": "테스트 사고다발지역",
+        "lat": 36.831395,
+        "lng": 127.131,
+        "years": [
+          2021,
+          2022
+        ],
+        "accidentCount": 4
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.836296,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 30
+      },
+      {
+        "type": "street_parking",
+        "lat": 36.831799,
+        "lng": 127.131
+      }
+    ],
+    "expected": {
+      "routeGrade": "danger",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 60,
+          "penalty": -30,
+          "score": 30,
+          "grade": "danger"
+        }
+      }
+    }
+  },
+  {
+    "id": "TC08",
+    "title": "점수 하한 0점 (20-30)",
+    "rule": "6-3 점수 범위",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      },
+      {
+        "id": "HS-1",
+        "type": "hotspot",
+        "name": "테스트 사고다발지역",
+        "lat": 36.831395,
+        "lng": 127.131,
+        "years": [
+          2021,
+          2022
+        ],
+        "accidentCount": 4
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.836296,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.836296,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 50
+      },
+      {
+        "type": "street_parking",
+        "lat": 36.831799,
+        "lng": 127.131
+      }
+    ],
+    "expected": {
+      "routeGrade": "danger",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 20,
+          "penalty": -30,
+          "score": 0,
+          "grade": "danger",
+          "items": {
+            "signal": "not_met",
+            "speed_bump": "not_met",
+            "speed_limit": "not_met",
+            "no_street_parking": "not_met",
+            "camera": "met"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC09",
+    "title": "반경 경계: 290m는 포함, 310m는 제외",
+    "rule": "6-1 반경 300m",
+    "available": [
+      "traffic_light",
+      "speed_bump"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.833508,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.833688,
+        "lng": 127.131
+      }
+    ],
+    "expected": {
+      "routeGrade": "caution",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 50,
+          "score": 50,
+          "grade": "caution",
+          "items": {
+            "signal": "met",
+            "speed_bump": "not_met",
+            "speed_limit": "no_data",
+            "no_street_parking": "no_data",
+            "camera": "no_data"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC10",
+    "title": "제한속도 50km/h → 미충족",
+    "rule": "6-2 제한속도",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 50
+      }
+    ],
+    "expected": {
+      "routeGrade": "safe",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 80,
+          "score": 80,
+          "grade": "safe",
+          "items": {
+            "signal": "met",
+            "speed_bump": "met",
+            "speed_limit": "not_met",
+            "no_street_parking": "met",
+            "camera": "met"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC11",
+    "title": "반경 안에 단속카메라 없음 → 제한속도는 데이터 없음",
+    "rule": "6-2 제한속도 (기준 보완)",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.836296,
+        "lng": 127.131,
+        "speedLimit": 30
+      }
+    ],
+    "expected": {
+      "routeGrade": "safe",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 75,
+          "score": 75,
+          "grade": "safe",
+          "lowConfidence": false,
+          "items": {
+            "signal": "met",
+            "speed_bump": "met",
+            "speed_limit": "no_data",
+            "no_street_parking": "met",
+            "camera": "not_met"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC12",
+    "title": "노상주차장 있음 → 미충족",
+    "rule": "6-2 노상주차장",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 30
+      },
+      {
+        "type": "street_parking",
+        "lat": 36.831799,
+        "lng": 127.131
+      }
+    ],
+    "expected": {
+      "routeGrade": "safe",
+      "zones": {
+        "CZ-A": {
+          "baseScore": 80,
+          "score": 80,
+          "grade": "safe",
+          "items": {
+            "signal": "met",
+            "speed_bump": "met",
+            "speed_limit": "met",
+            "no_street_parking": "not_met",
+            "camera": "met"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC13",
+    "title": "경로 등급 = 가장 낮은 구역 등급 (안전 + 위험 → 위험)",
+    "rule": "6-4 경로 등급",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      },
+      {
+        "id": "EZ-B",
+        "type": "elder",
+        "name": "테스트 경로당 B",
+        "lat": 36.8,
+        "lng": 127.15
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 30
+      }
+    ],
+    "expected": {
+      "routeGrade": "danger",
+      "zones": {
+        "CZ-A": {
+          "score": 100,
+          "grade": "safe"
+        },
+        "EZ-B": {
+          "baseScore": 25,
+          "score": 25,
+          "grade": "danger",
+          "items": {
+            "signal": "not_met",
+            "speed_bump": "not_met",
+            "speed_limit": "no_data",
+            "no_street_parking": "met",
+            "camera": "not_met"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "TC14",
+    "title": "경로 등급 (안전 + 주의 → 주의)",
+    "rule": "6-4 경로 등급",
+    "available": [
+      "traffic_light",
+      "speed_bump",
+      "camera",
+      "street_parking"
+    ],
+    "zones": [
+      {
+        "id": "CZ-A",
+        "type": "child",
+        "name": "테스트 초등학교 A",
+        "lat": 36.8309,
+        "lng": 127.131
+      },
+      {
+        "id": "CZ-C",
+        "type": "child",
+        "name": "테스트 유치원 C",
+        "lat": 36.78,
+        "lng": 127.17
+      }
+    ],
+    "facilities": [
+      {
+        "type": "traffic_light",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "speed_bump",
+        "lat": 36.831799,
+        "lng": 127.131
+      },
+      {
+        "type": "camera",
+        "lat": 36.831799,
+        "lng": 127.131,
+        "speedLimit": 30
+      },
+      {
+        "type": "traffic_light",
+        "lat": 36.780899,
+        "lng": 127.17
+      }
+    ],
+    "expected": {
+      "routeGrade": "caution",
+      "zones": {
+        "CZ-A": {
+          "grade": "safe"
+        },
+        "CZ-C": {
+          "baseScore": 50,
+          "score": 50,
+          "grade": "caution",
+          "items": {
+            "signal": "met",
+            "speed_bump": "not_met",
+            "speed_limit": "no_data",
+            "no_street_parking": "met",
+            "camera": "not_met"
+          }
+        }
+      }
+    }
+  }
+]
