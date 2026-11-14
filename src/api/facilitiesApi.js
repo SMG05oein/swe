@@ -249,12 +249,71 @@ export function fetchTrafficLights() {
   };
 }
 
+// 무인교통단속카메라 표준데이터 (제한속도 lmttVe 포함)
+export async function fetchEnforcementCameras() {
+  const { dataGoKrKey } = getApiKeys();
+  if (!dataGoKrKey) return [];
+
+  try {
+    const url =
+      `/api/datagokr/openapi/tn_pubr_public_unman_trfc_cctv_api?serviceKey=${formatAuthKey(dataGoKrKey)}` +
+      `&pageNo=1&numOfRows=500&type=json&insttCode=${CHEONAN_ORG_CD}`;
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    const raw = json?.body?.items?.item ?? json?.response?.body?.items ?? [];
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+
+    return list
+      .map((item) => ({
+        lat: parseFloat(item.latitude),
+        lng: parseFloat(item.longitude),
+        speedLimit: item.lmttVe && item.lmttVe !== '0' ? Number(item.lmttVe) : null,
+        regulationType: item.regltnSe || '',
+        zoneType: item.prtcareaType || '',
+        location: item.instlLc || item.rdnmadr || '',
+      }))
+      .filter((p) => !isNaN(p.lat) && !isNaN(p.lng));
+  } catch {
+    return [];
+  }
+}
+
+// 주차장정보 표준데이터 (노상주차장만 필터링)
+export async function fetchStreetParking() {
+  const { dataGoKrKey } = getApiKeys();
+  if (!dataGoKrKey) return [];
+
+  try {
+    const url =
+      `/api/datagokr/openapi/tn_pubr_prkplce_info_api?serviceKey=${formatAuthKey(dataGoKrKey)}` +
+      `&pageNo=1&numOfRows=500&type=json&insttCode=${CHEONAN_ORG_CD}`;
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    const raw = json?.body?.items?.item ?? json?.response?.body?.items ?? [];
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+
+    return list
+      .filter((item) => item.prkplceSe === '노상')
+      .map((item) => ({
+        name: item.prkplceNm || '',
+        lat: parseFloat(item.latitude),
+        lng: parseFloat(item.longitude),
+        spaces: parseInt(item.prkcmprt, 10) || 0,
+      }))
+      .filter((p) => !isNaN(p.lat) && !isNaN(p.lng));
+  } catch {
+    return [];
+  }
+}
+
 export function getSampleFacilities() {
   const trafficLightsResult = fetchTrafficLights();
   return {
     success: false,
     fromSample: true,
-    message: '공공데이터포털 연결 실패로 천안 샘플 시설 데이터를 사용합니다.',
+    message: 
     cctv: SAMPLE_CCTV,
     speedBump: SAMPLE_SPEED_BUMPS,
     protectionZones: SAMPLE_CHILD_ZONES,
@@ -263,7 +322,7 @@ export function getSampleFacilities() {
   };
 }
 
-// 천안시 CCTV / 과속방지턱 / 어린이보호구역 / 노인보호구역 / 신호등 로드
+// 천안시 CCTV / 과속방지턱 / 어린이보호구역 / 노인보호구역 / 신호등 / 단속카메라 / 노상주차장 로드
 export async function fetchFacilities() {
   const { dataGoKrKey } = getApiKeys();
   const trafficLightsResult = fetchTrafficLights();
@@ -272,20 +331,23 @@ export async function fetchFacilities() {
     const elderRes = await fetchElderProtectionZones();
     return {
       success: false,
-      message: '공공데이터포털 인증키가 설정되지 않았습니다.',
+      message:
       cctv: [],
       speedBump: [],
       protectionZones: [],
       elderProtectionZones: elderRes.items || [],
       trafficLights: trafficLightsResult.items || [],
+      streetParking: [],
     };
   }
 
-  const [cctvRes, bumpRes, zoneRes, elderRes] = await Promise.allSettled([
+  const [cctvRes, bumpRes, zoneRes, elderRes, cameraRes, parkingRes] = await Promise.allSettled([
     fetchAll(ENDPOINTS.cctv, dataGoKrKey),
     fetchAll(ENDPOINTS.speedBump, dataGoKrKey),
     fetchChildProtectionZones(),
     fetchElderProtectionZones(),
+    fetchEnforcementCameras(),
+    fetchStreetParking(),
   ]);
 
   const errors = [];
@@ -322,10 +384,17 @@ export async function fetchFacilities() {
   const elderProtectionItems =
     elderRes.status === 'fulfilled' ? elderRes.value.items || [] : CHEONAN_MOCK_ELDER_ZONES;
 
+  const enforcementCameras =
+    cameraRes.status === 'fulfilled' && cameraRes.value.length
+      ? cameraRes.value
+      : CHEONAN_ENRICHED_FACILITIES.schoolZoneCamera;
+
+  const streetParking =
+    parkingRes.status === 'fulfilled' ? parkingRes.value : [];
+
   return {
     success: errors.length === 0,
     message: usedSample
-      ? '공공데이터포털 연결 실패로 천안 샘플 시설 데이터를 사용합니다.'
       : errors.join(' / '),
     fromSample: usedSample,
     cctv,
@@ -335,7 +404,8 @@ export async function fetchFacilities() {
     trafficLights: trafficLightsResult.items || [],
     safetyFence: CHEONAN_ENRICHED_FACILITIES.safetyFence,
     yellowCarpet: CHEONAN_ENRICHED_FACILITIES.yellowCarpet,
-    schoolZoneCamera: CHEONAN_ENRICHED_FACILITIES.schoolZoneCamera,
+    schoolZoneCamera: enforcementCameras,
+    streetParking,
     acousticSignal: CHEONAN_ENRICHED_FACILITIES.acousticSignal,
     floorLight: CHEONAN_ENRICHED_FACILITIES.floorLight,
     barrierFree: CHEONAN_ENRICHED_FACILITIES.barrierFree,
