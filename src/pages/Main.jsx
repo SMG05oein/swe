@@ -17,13 +17,14 @@ import {
 } from '../api/trafficApi';
 import { getApiKeys, saveApiKeys } from '../api/apiClient';
 import { fetchFacilities, getSampleFacilities } from '../api/facilitiesApi';
-import { fetchPedestrianRoute } from '../api/routeApi';
 import { reverseGeocode } from '../api/geocodeApi';
 import { fetchChecklistConfig, fetchCachedPublicData } from '../api/adminApi';
 import { DEFAULT_CHECKLIST_CONFIG } from '../domain/checklist';
-import { findHazardsNearRoute, avoidWaypointFromHazards } from '../domain/hazards';
 import { gradeRoute, formatDistance, formatDuration } from '../domain/routeGrade';
 import { getSampleAccidents } from '../data/sampleAccidents';
+import NavigationManager from '../services/NavigationManager';
+
+const navigationManager = new NavigationManager();
 
 const SIDEBAR_WIDTH_KEY = 'swe_sidebar_width';
 const SIDEBAR_MIN = 280;
@@ -207,16 +208,14 @@ export default function Main() {
     [facilities]
   );
 
-  const analyzePath = useCallback(
-    (path) =>
-      findHazardsNearRoute({
-        path,
-        accidents,
-        protectionZones: allProtectionZones,
-        facilities,
-        config: checklistConfig,
-        vulnerableType,
-      }),
+  const routeContext = useMemo(
+    () => ({
+      accidents,
+      protectionZones: allProtectionZones,
+      facilities,
+      config: checklistConfig,
+      vulnerableType,
+    }),
     [accidents, allProtectionZones, facilities, checklistConfig, vulnerableType]
   );
 
@@ -228,10 +227,11 @@ export default function Main() {
     setActiveRouteKey('primary');
     setErrorBanner('');
     try {
-      const result = await fetchPedestrianRoute([origin, destination], {
-        vulnerableType,
+      const { route: result, hazards: found } = await navigationManager.runPrimaryRoute({
+        origin,
+        destination,
+        ...routeContext,
       });
-      const found = analyzePath(result.path);
       setRoute(result);
       setHazards(found);
       setSelectedHazard(found[0] || null);
@@ -249,20 +249,22 @@ export default function Main() {
     setAltLoading(true);
     setErrorBanner('');
     try {
-      if (!hazards.length) {
-        setErrorBanner('회피할 위험 구역이 없습니다. 기본 경로와 동일합니다.');
+      const outcome = await navigationManager.runAvoidRoute({
+        origin,
+        destination,
+        hazards,
+        ...routeContext,
+      });
+      if (outcome.skipped) {
+        setErrorBanner(outcome.reason);
         setAltRoute(null);
         setAltHazards([]);
         return;
       }
-      const via = avoidWaypointFromHazards(origin, destination, hazards);
-      const waypoints = via ? [origin, via, destination] : [origin, destination];
-      const result = await fetchPedestrianRoute(waypoints, { vulnerableType });
-      const found = analyzePath(result.path);
-      setAltRoute(result);
-      setAltHazards(found);
+      setAltRoute(outcome.route);
+      setAltHazards(outcome.hazards);
       setActiveRouteKey('alt');
-      setSelectedHazard(found[0] || null);
+      setSelectedHazard(outcome.hazards[0] || null);
     } catch (e) {
       setErrorBanner(e.message || '대체 경로를 찾지 못했습니다.');
     } finally {
