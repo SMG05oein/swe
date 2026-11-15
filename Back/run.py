@@ -398,13 +398,29 @@ def build_default_tips(req: TipsRequest) -> TipsResponse:
         "차량이 완전히 정지했는지 확인한 후 이동하세요."
     ]
 
-    # 확인되지 않은 안전시설 정보 반영
+    
+    # 확인되지 않은 시설별 기본 유의점
     if req.missing_labels:
-        facility = req.missing_labels[0]
-        guardian[0] = (
-            f"{facility} 정보가 확인되지 않았으므로 "
-            "실제 현장 상태를 확인하세요."
-        )
+        messages = []
+
+        for facility in req.missing_labels:
+            if "보행신호등" in facility:
+                messages.append(
+                    "보행신호등 정보가 확인되지 않았으므로 현장에서 신호 상태를 확인하세요."
+                )
+
+            elif "과속방지턱" in facility:
+                messages.append(
+                    "과속방지턱 정보가 확인되지 않았으므로 접근 차량의 속도에 주의하세요."
+                )
+
+            else:
+                messages.append(
+                    f"{facility} 정보가 확인되지 않았으므로 현장 상태를 확인하세요."
+                )
+
+        guardian = (messages + guardian)[:3]
+
 
     # 보행자용 기본 문구
     pedestrian = [
