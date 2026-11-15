@@ -23,7 +23,6 @@ import { fetchChecklistConfig, fetchCachedPublicData } from '../api/adminApi';
 import { DEFAULT_CHECKLIST_CONFIG } from '../domain/checklist';
 import { gradeRoute, formatDistance, formatDuration } from '../domain/routeGrade';
 import { findHazardsNearRoute, avoidWaypointFromHazards } from '../domain/hazards';
-import { gradeRoute } from '../domain/routeGrade';
 import { segmentRouteByHazards } from '../domain/routeSegments';
 import { getSampleAccidents } from '../data/sampleAccidents';
 import NavigationManager from '../services/NavigationManager';
