@@ -358,7 +358,7 @@ export function getSampleFacilities() {
   return {
     success: false,
     fromSample: true,
-    message: 
+    message: '공공데이터포털 연결 실패로 천안 샘플 시설 데이터를 사용합니다.',
     cctv: SAMPLE_CCTV,
     speedBump: SAMPLE_SPEED_BUMPS,
     protectionZones: SAMPLE_CHILD_ZONES,
@@ -376,7 +376,7 @@ export async function fetchFacilities() {
     const elderRes = await fetchElderProtectionZones();
     return {
       success: false,
-      message:
+      message: '공공데이터포털 인증키가 설정되지 않았습니다.',
       cctv: [],
       speedBump: [],
       protectionZones: [],
@@ -440,6 +440,7 @@ export async function fetchFacilities() {
   return {
     success: errors.length === 0,
     message: usedSample
+      ? '공공데이터포털 연결 실패로 천안 샘플 시설 데이터를 사용합니다.'
       : errors.join(' / '),
     fromSample: usedSample,
     cctv,
