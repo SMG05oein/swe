@@ -388,6 +388,37 @@ class TipsResponse(BaseModel):
     risk_level: Optional[str] = None
 
 
+def build_default_tips(req: TipsRequest) -> TipsResponse:
+    who = "어르신" if req.category == "elder" else "어린이"
+
+    # 보호자용 기본 문구
+    guardian = [
+        f"{who}와 함께 이동할 때 주변 차량을 확인하세요.",
+        "횡단보도에서는 보행 신호를 확인하세요.",
+        "차량이 완전히 정지했는지 확인한 후 이동하세요."
+    ]
+
+    # 확인되지 않은 안전시설 정보 반영
+    if req.missing_labels:
+        facility = req.missing_labels[0]
+        guardian[0] = (
+            f"{facility} 정보가 확인되지 않았으므로 "
+            "실제 현장 상태를 확인하세요."
+        )
+
+    # 보행자용 기본 문구
+    pedestrian = [
+        "도로를 건너기 전에 좌우를 살펴보세요.",
+        "보행 신호를 확인하고 건너세요.",
+        "주변 차량을 주의하며 천천히 이동하세요."
+    ]
+
+    return TipsResponse(
+        guardianTips=guardian,
+        pedestrianTips=pedestrian,
+        source="default_text"
+    )
+
 FINE_TUNE_SYSTEM = """
 당신은 천안시 교통약자 보행 안전 유의점 생성 AI입니다.
 
@@ -557,10 +588,10 @@ async def generate_tips(req: TipsRequest):
             last_error = str(exc)
             continue
 
-    raise HTTPException(
-        status_code=503,
-        detail=f"파인튜닝 모델({OLLAMA_MODEL}) 유의점 생성 실패: {last_error}",
-    )
+    
+    # AI가 두 번 시도해도 실패하면 기본 문구 반환
+    print(f"AI 유의점 생성 실패: {last_error}")
+    return build_default_tips(req)
 
 
 @app.get("/api/admin/config")
