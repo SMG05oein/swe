@@ -512,8 +512,14 @@ def map_diagnosis_to_tips(parsed: dict, req: TipsRequest) -> TipsResponse:
     )
 
 
-@app.post("/api/tips", response_model=TipsResponse)
-async def generate_tips(req: TipsRequest):
+
+async def _generate_tips_impl(
+    req: TipsRequest,
+    llm_host: str,
+    default_guidance
+):
+
+
     """Fine-tuned diagnose prompt → map to tips. No default_text fallback."""
     cache_key = (
         f"tips_v2:{req.spot_nm}:{req.category}:{req.checklist_score}:"
@@ -569,7 +575,7 @@ async def generate_tips(req: TipsRequest):
     for _ in range(2):
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(f"{OLLAMA_HOST}/api/chat", json=payload)
+                resp = await client.post(f"{llm_host}/api/chat", json=payload)
                 if resp.status_code != 200:
                     last_error = f"ollama HTTP {resp.status_code}"
                     continue
@@ -591,7 +597,38 @@ async def generate_tips(req: TipsRequest):
     
     # AI가 두 번 시도해도 실패하면 기본 문구 반환
     print(f"AI 유의점 생성 실패: {last_error}")
-    return build_default_tips(req)
+    return default_guidance(req)
+
+ 
+class GuidanceGenerator:
+    def __init__(self, llmClient: str = OLLAMA_HOST):
+        self.llmClient = llmClient
+
+    # AI 유의점 생성
+    async def generateGuidance(
+        self, result: TipsRequest
+    ) -> TipsResponse:
+        return await _generate_tips_impl(
+            result,
+            self.llmClient,
+            self.getDefaultGuidance
+        )
+
+    # AI 실패 시 기본 문구 반환
+    def getDefaultGuidance(
+        self, result: TipsRequest
+    ) -> TipsResponse:
+        return build_default_tips(result)
+
+
+# 클래스 객체 생성
+guidance_generator = GuidanceGenerator()
+
+
+# 기존 API 주소 유지
+@app.post("/api/tips", response_model=TipsResponse)
+async def generate_tips(req: TipsRequest):
+    return await guidance_generator.generateGuidance(req)
 
 
 @app.get("/api/admin/config")
