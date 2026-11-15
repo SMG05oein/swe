@@ -388,12 +388,88 @@ class TipsResponse(BaseModel):
     risk_level: Optional[str] = None
 
 
-FINE_TUNE_SYSTEM = (
-    "당신은 도로교통공단 및 천안시 교통안전 전문 진단 AI 어드바이저입니다. "
-    "교통사고 다발 지점의 실측 사상자 규모와 반경 300m 내 안전시설 결측 데이터를 종합 분석하여 "
-    "위험도 등급, 구조적 원인 진단, 운전자 및 보행약자 맞춤 행동 수칙, 천안시 맞춤 인프라 개선안을 "
-    "엄격한 JSON 규격으로 반환하십시오."
-)
+def build_default_tips(req: TipsRequest) -> TipsResponse:
+    who = "어르신" if req.category == "elder" else "어린이"
+
+    # 보호자용 기본 문구
+    guardian = [
+        f"{who}와 함께 이동할 때 주변 차량을 확인하세요.",
+        "횡단보도에서는 보행 신호를 확인하세요.",
+        "차량이 완전히 정지했는지 확인한 후 이동하세요."
+    ]
+
+    
+    # 확인되지 않은 시설별 기본 유의점
+    if req.missing_labels:
+        messages = []
+
+        for facility in req.missing_labels:
+            if "보행신호등" in facility:
+                messages.append(
+                    "보행신호등 정보가 확인되지 않았으므로 현장에서 신호 상태를 확인하세요."
+                )
+
+            elif "과속방지턱" in facility:
+                messages.append(
+                    "과속방지턱 정보가 확인되지 않았으므로 접근 차량의 속도에 주의하세요."
+                )
+
+            else:
+                messages.append(
+                    f"{facility} 정보가 확인되지 않았으므로 현장 상태를 확인하세요."
+                )
+
+        guardian = (messages + guardian)[:3]
+
+
+    # 보행자용 기본 문구
+    pedestrian = [
+        "도로를 건너기 전에 좌우를 살펴보세요.",
+        "보행 신호를 확인하고 건너세요.",
+        "주변 차량을 주의하며 천천히 이동하세요."
+    ]
+
+    return TipsResponse(
+        guardianTips=guardian,
+        pedestrianTips=pedestrian,
+        source="default_text"
+    )
+
+FINE_TUNE_SYSTEM = """
+당신은 천안시 교통약자 보행 안전 유의점 생성 AI입니다.
+
+입력받은 사고 통계와 안전시설 정보를 바탕으로
+어린이 또는 어르신을 위한 안전 유의점을 작성하세요.
+
+반드시 아래 5개 항목을 모두 포함한 JSON 객체만 반환하세요.
+
+{
+  "risk_level": "주의",
+  "comprehensive_diagnosis": "사고 통계와 시설 정보를 바탕으로 한 간단한 위험 진단",
+  "driver_rules": [
+    "운전자 안전 수칙 1",
+    "운전자 안전 수칙 2"
+  ],
+  "pedestrian_rules": [
+    "보행자 안전 수칙 1",
+    "보행자 안전 수칙 2"
+  ],
+  "infrastructure_recommendations": [
+    "안전시설 개선 제안 1",
+    "안전시설 개선 제안 2"
+  ]
+}
+
+규칙:
+1. JSON 외의 설명이나 마크다운을 출력하지 마세요.
+2. 위의 영어 키 이름을 정확하게 유지하세요.
+3. 입력 데이터에 없는 사고나 시설 정보를 지어내지 마세요.
+4. 확인되지 않은 시설을 실제로 없다고 단정하지 마세요.
+5. 안전 유의점은 구체적이고 이해하기 쉽게 작성하세요.
+6. 각 항목은 짧고 명확하게 작성하세요.
+7. 법적 의무를 근거 없이 만들어내지 마세요.
+"""
+
 
 
 def _clean_tip_lines(items: List[str], limit: int = 3) -> List[str]:
@@ -452,8 +528,14 @@ def map_diagnosis_to_tips(parsed: dict, req: TipsRequest) -> TipsResponse:
     )
 
 
-@app.post("/api/tips", response_model=TipsResponse)
-async def generate_tips(req: TipsRequest):
+
+async def _generate_tips_impl(
+    req: TipsRequest,
+    llm_host: str,
+    default_guidance
+):
+
+
     """Fine-tuned diagnose prompt → map to tips. No default_text fallback."""
     cache_key = (
         f"tips_v2:{req.spot_nm}:{req.category}:{req.checklist_score}:"
@@ -509,7 +591,7 @@ async def generate_tips(req: TipsRequest):
     for _ in range(2):
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(f"{OLLAMA_HOST}/api/chat", json=payload)
+                resp = await client.post(f"{llm_host}/api/chat", json=payload)
                 if resp.status_code != 200:
                     last_error = f"ollama HTTP {resp.status_code}"
                     continue
@@ -528,10 +610,41 @@ async def generate_tips(req: TipsRequest):
             last_error = str(exc)
             continue
 
-    raise HTTPException(
-        status_code=503,
-        detail=f"파인튜닝 모델({OLLAMA_MODEL}) 유의점 생성 실패: {last_error}",
-    )
+    
+    # AI가 두 번 시도해도 실패하면 기본 문구 반환
+    print(f"AI 유의점 생성 실패: {last_error}")
+    return default_guidance(req)
+
+ 
+class GuidanceGenerator:
+    def __init__(self, llmClient: str = OLLAMA_HOST):
+        self.llmClient = llmClient
+
+    # AI 유의점 생성
+    async def generateGuidance(
+        self, result: TipsRequest
+    ) -> TipsResponse:
+        return await _generate_tips_impl(
+            result,
+            self.llmClient,
+            self.getDefaultGuidance
+        )
+
+    # AI 실패 시 기본 문구 반환
+    def getDefaultGuidance(
+        self, result: TipsRequest
+    ) -> TipsResponse:
+        return build_default_tips(result)
+
+
+# 클래스 객체 생성
+guidance_generator = GuidanceGenerator()
+
+
+# 기존 API 주소 유지
+@app.post("/api/tips", response_model=TipsResponse)
+async def generate_tips(req: TipsRequest):
+    return await guidance_generator.generateGuidance(req)
 
 
 @app.get("/api/admin/config")
