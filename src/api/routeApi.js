@@ -1,6 +1,16 @@
 /**
  * Pedestrian routing via OSRM geometry + walking-speed ETA.
  * Public OSRM "foot" durations are often car-like; we recompute ETA from distance.
+ *
+ * Route contract (Part 4 handoff object):
+ * @typedef {Object} Route
+ * @property {[number, number][]} path LatLng pairs [lat, lng]
+ * @property {number} distance Meters
+ * @property {number} duration Walking ETA seconds (persona speed)
+ * @property {number} osrmDuration Raw OSRM duration seconds
+ * @property {'foot'} profile
+ * @property {'walk_speed'} etaSource
+ * @property {object} raw OSRM JSON payload
  */
 
 /** meters per second */
@@ -22,6 +32,7 @@ export function estimateWalkDuration(distanceMeters, vulnerableType = 'child') {
 /**
  * @param {{lat:number,lng:number}[]} waypoints
  * @param {{vulnerableType?: string}} [options]
+ * @returns {Promise<Route>}
  */
 export async function fetchPedestrianRoute(waypoints, options = {}) {
   if (!waypoints || waypoints.length < 2) {
