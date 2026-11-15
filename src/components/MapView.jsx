@@ -1,13 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import './MapView.css';
+import Icon from './Icon';
 import { CHEONAN_CENTER } from '../data/regions';
+import { COLORS } from './map/mapShared';
+import { createLeafletEngine } from './map/leafletEngine';
+import { createKakaoEngine } from './map/kakaoEngine';
+import { getKakaoMapKey, loadKakaoMaps } from './map/kakaoSdk';
 
+// 카카오 키(VITE_KAKAO_MAP_KEY)가 있으면 카카오 지도, 없거나 못 불러오면 OpenStreetMap
 export default function MapView({
   spots = [],
   hazards = [],
   protectionZones = [],
   routePath = null,
+  routeSegments = null,
   altRoutePath = null,
+  onSelectOtherRoute,
   origin = null,
   destination = null,
   selectedHazard = null,
@@ -20,299 +28,179 @@ export default function MapView({
   regionPresets,
 }) {
   const mapRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const layersRef = useRef({
-    markers: [],
-    circles: [],
-    protectionMarkers: [],
-    hazardMarkers: [],
-    routeLine: null,
-    altLine: null,
-    endpoints: [],
-  });
+  const [engine, setEngine] = useState(null);
+  const [fallbackNote, setFallbackNote] = useState('');
 
   const [showChildZones, setShowChildZones] = useState(true);
   const [showElderZones, setShowElderZones] = useState(true);
-  const [showLegend, setShowLegend] = useState(true);
+  const [layersOpen, setLayersOpen] = useState(false);
 
   useEffect(() => {
-    if (!mapRef.current || !window.L || mapInstanceRef.current) return;
+    const container = mapRef.current;
+    if (!container) return undefined;
+    let cancelled = false;
+    let created = null;
 
-    const L = window.L;
-    const map = L.map(mapRef.current, {
-      center: [CHEONAN_CENTER.lat, CHEONAN_CENTER.lng],
-      zoom: CHEONAN_CENTER.zoom || 15,
-      zoomControl: true,
-    });
+    const start = (factory) => {
+      if (cancelled) return;
+      created = factory(container, CHEONAN_CENTER);
+      setEngine(created);
+    };
+    const startLeaflet = () => {
+      if (window.L) start(createLeafletEngine);
+    };
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    }).addTo(map);
-
-    mapInstanceRef.current = map;
-    setTimeout(() => map.invalidateSize(), 100);
-
-    const handleResize = () => map.invalidateSize();
-    window.addEventListener('resize', handleResize);
-
-    let resizeObserver = null;
-    if (window.ResizeObserver && mapRef.current) {
-      resizeObserver = new ResizeObserver(() => map.invalidateSize());
-      resizeObserver.observe(mapRef.current);
+    const kakaoKey = getKakaoMapKey();
+    if (kakaoKey) {
+      loadKakaoMaps(kakaoKey)
+        .then(() => start(createKakaoEngine))
+        .catch((err) => {
+          if (cancelled) return;
+          console.warn('[MapView] 카카오 지도 대신 OpenStreetMap 사용:', err.message);
+          setFallbackNote('카카오 지도를 불러오지 못해 기본 지도로 보여드려요');
+          startLeaflet();
+        });
+    } else {
+      startLeaflet();
     }
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      if (resizeObserver) resizeObserver.disconnect();
-      map.remove();
-      mapInstanceRef.current = null;
+      cancelled = true;
+      created?.destroy();
+      setEngine(null);
     };
   }, []);
 
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !onMapClick) return undefined;
-    const handler = (e) => onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
-    map.on('click', handler);
-    return () => map.off('click', handler);
-  }, [onMapClick]);
-
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !currentRegion || !regionPresets?.[currentRegion]) return;
-    const target = regionPresets[currentRegion];
-    map.flyTo([target.lat, target.lng], target.zoom || 15, { animate: true, duration: 1.0 });
-  }, [currentRegion, regionPresets]);
-
-  // Accident spots
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    const L = window.L;
-    if (!map || !L) return;
-
-    layersRef.current.markers.forEach((m) => m.remove());
-    layersRef.current.circles.forEach((c) => c.remove());
-    layersRef.current.markers = [];
-    layersRef.current.circles = [];
-
-    if (!showAccidents || !spots?.length) return;
-
-    spots.forEach((spot) => {
-      const lat = parseFloat(spot.la_crd);
-      const lng = parseFloat(spot.lo_crd);
-      if (Number.isNaN(lat) || Number.isNaN(lng)) return;
-      const color = spot.color || '#38bdf8';
-      const circle = L.circle([lat, lng], {
-        color,
-        fillColor: color,
-        fillOpacity: 0.12,
-        weight: 1.5,
-        dashArray: '4, 4',
-        radius: spot.radius || 300,
-      }).addTo(map);
-      const marker = L.circleMarker([lat, lng], {
-        radius: 7,
-        color: '#fff',
-        weight: 2,
-        fillColor: color,
-        fillOpacity: 0.95,
-      }).addTo(map);
-      marker.bindPopup(`<b>${spot.spot_nm || '사고다발'}</b><br/>사고 ${spot.occrrnc_cnt || 0}건`);
-      layersRef.current.markers.push(marker);
-      layersRef.current.circles.push(circle);
+    if (!engine || !onMapClick) return undefined;
+    return engine.onClick((point) => {
+      setLayersOpen(false);
+      onMapClick(point);
     });
-  }, [spots, showAccidents]);
+  }, [engine, onMapClick]);
 
-  // Protection zones
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    const L = window.L;
-    if (!map || !L) return;
+    const target = regionPresets?.[currentRegion];
+    if (engine && target) engine.flyTo(target.lat, target.lng, target.zoom || 15);
+  }, [engine, currentRegion, regionPresets]);
 
-    layersRef.current.protectionMarkers.forEach((m) => m.remove());
-    layersRef.current.protectionMarkers = [];
+  // 사고다발지역 (전체)
+  useEffect(() => {
+    engine?.setSpots(showAccidents ? spots || [] : []);
+  }, [engine, spots, showAccidents]);
 
-    (protectionZones || []).forEach((zone) => {
-      const isElder = zone.type === 'elder';
-      if (isElder && !showElderZones) return;
-      if (!isElder && !showChildZones) return;
-      const lat = parseFloat(zone.lat);
-      const lng = parseFloat(zone.lng);
-      if (Number.isNaN(lat) || Number.isNaN(lng)) return;
-      const bg = isElder ? '#f59e0b' : '#10b981';
-      const icon = L.divIcon({
-        className: 'custom-protection-marker',
-        html: `<div style="background:${bg};color:#fff;width:18px;height:18px;border-radius:5px;border:2px solid #0f172a;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;">${isElder ? '실' : '보'}</div>`,
-        iconSize: [18, 18],
-        iconAnchor: [9, 9],
-      });
-      const m = L.marker([lat, lng], { icon }).addTo(map);
-      m.bindPopup(`<b>${zone.name}</b>`);
-      layersRef.current.protectionMarkers.push(m);
+  // 보호구역
+  useEffect(() => {
+    if (!engine) return;
+    engine.setZones(
+      (protectionZones || []).filter((zone) => (zone.type === 'elder' ? showElderZones : showChildZones))
+    );
+  }, [engine, protectionZones, showChildZones, showElderZones]);
+
+  // 경로 + 출발/도착
+  useEffect(() => {
+    engine?.setRoute({
+      path: routePath,
+      segments: routeSegments,
+      altPath: altRoutePath,
+      origin,
+      destination,
+      onSelectOther: onSelectOtherRoute,
     });
-  }, [protectionZones, showChildZones, showElderZones]);
+  }, [engine, routePath, routeSegments, altRoutePath, origin, destination, onSelectOtherRoute]);
 
-  // Route polylines + endpoints
+  // 경로 위 위험 지점 (번호 핀)
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    const L = window.L;
-    if (!map || !L) return;
+    engine?.setHazards(hazards || [], selectedHazard?.id, onSelectHazard);
+  }, [engine, hazards, selectedHazard, onSelectHazard]);
 
-    if (layersRef.current.routeLine) {
-      layersRef.current.routeLine.remove();
-      layersRef.current.routeLine = null;
-    }
-    if (layersRef.current.altLine) {
-      layersRef.current.altLine.remove();
-      layersRef.current.altLine = null;
-    }
-    layersRef.current.endpoints.forEach((m) => m.remove());
-    layersRef.current.endpoints = [];
-
-    if (routePath?.length) {
-      layersRef.current.routeLine = L.polyline(routePath, {
-        color: '#38bdf8',
-        weight: 5,
-        opacity: 0.9,
-      }).addTo(map);
-      map.fitBounds(layersRef.current.routeLine.getBounds(), { padding: [40, 40] });
-    }
-
-    if (altRoutePath?.length) {
-      layersRef.current.altLine = L.polyline(altRoutePath, {
-        color: '#10b981',
-        weight: 5,
-        opacity: 0.85,
-        dashArray: '8, 8',
-      }).addTo(map);
-    }
-
-    const addEndpoint = (point, label, color) => {
-      if (!point) return;
-      const m = L.circleMarker([point.lat, point.lng], {
-        radius: 8,
-        color: '#fff',
-        weight: 2,
-        fillColor: color,
-        fillOpacity: 1,
-      }).addTo(map);
-      m.bindTooltip(label, { permanent: false });
-      layersRef.current.endpoints.push(m);
-    };
-
-    addEndpoint(origin, '출발', '#22c55e');
-    addEndpoint(destination, '도착', '#ef4444');
-  }, [routePath, altRoutePath, origin, destination]);
-
-  // Hazard markers
+  // 선택 지점으로 이동
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    const L = window.L;
-    if (!map || !L) return;
+    if (engine && selectedHazard) engine.focus(selectedHazard.lat, selectedHazard.lng);
+  }, [engine, selectedHazard]);
 
-    layersRef.current.hazardMarkers.forEach((m) => m.remove());
-    layersRef.current.hazardMarkers = [];
-
-    (hazards || []).forEach((h) => {
-      const selected = selectedHazard?.id === h.id;
-      const m = L.circleMarker([h.lat, h.lng], {
-        radius: selected ? 11 : 8,
-        color: '#fff',
-        weight: selected ? 3 : 2,
-        fillColor: h.kind === 'accident' ? '#f43f5e' : '#f59e0b',
-        fillOpacity: 0.95,
-      }).addTo(map);
-      m.bindPopup(`<b>${h.name}</b><br/>${h.reason}`);
-      m.on('click', () => onSelectHazard?.(h));
-      layersRef.current.hazardMarkers.push(m);
-    });
-  }, [hazards, selectedHazard, onSelectHazard]);
+  useEffect(() => {
+    engine?.setPickCursor(Boolean(pickMode));
+  }, [engine, pickMode]);
 
   const childZonesCount = (protectionZones || []).filter((z) => z.type !== 'elder').length;
   const elderZonesCount = (protectionZones || []).filter((z) => z.type === 'elder').length;
 
-  const toggleAccidents = () => {
-    onToggleAccidents?.(!showAccidents);
-  };
+  const layerItems = [
+    { key: 'child', label: '어린이보호구역', count: childZonesCount, color: COLORS.childZone, on: showChildZones, toggle: () => setShowChildZones((p) => !p) },
+    { key: 'elder', label: '노인보호구역', count: elderZonesCount, color: COLORS.elderZone, on: showElderZones, toggle: () => setShowElderZones((p) => !p) },
+    { key: 'accident', label: '사고다발지역', count: spots.length, color: COLORS.accident, on: showAccidents, toggle: () => onToggleAccidents?.(!showAccidents) },
+  ];
 
   return (
-    <section className={`map-section ${pickMode ? 'picking' : ''}`}>
-      <div id="map-container" ref={mapRef} className="map-container" />
-      {pickMode && (
-        <div className="map-pick-hint">
-          지도를 클릭해 {pickMode === 'origin' ? '출발지' : '도착지'}를 지정하세요
+    <section className={`map-section ${pickMode ? 'picking' : ''} engine-${engine?.name || 'loading'}`}>
+      <div ref={mapRef} className="map-container" />
+
+      {fallbackNote && (
+        <div className="map-engine-note" role="status">
+          <span>{fallbackNote}</span>
+          <button type="button" aria-label="안내 닫기" onClick={() => setFallbackNote('')}>
+            <Icon name="close" size={14} />
+          </button>
         </div>
       )}
 
-      <div className="map-layer-toolbar">
-        <button
-          type="button"
-          className={`map-toggle-chip ${showChildZones ? 'active child' : 'inactive'}`}
-          onClick={() => setShowChildZones((p) => !p)}
-        >
-          <span className="chip-text">어린이보호구역</span>
-          <span className="chip-status-badge">{showChildZones ? 'ON' : 'OFF'}</span>
-        </button>
-        <button
-          type="button"
-          className={`map-toggle-chip ${showElderZones ? 'active elder' : 'inactive'}`}
-          onClick={() => setShowElderZones((p) => !p)}
-        >
-          <span className="chip-text">실버존</span>
-          <span className="chip-status-badge">{showElderZones ? 'ON' : 'OFF'}</span>
-        </button>
-        <button
-          type="button"
-          className={`map-toggle-chip ${showAccidents ? 'active legend' : 'inactive'}`}
-          onClick={toggleAccidents}
-        >
-          <span className="chip-text">사고다발지역</span>
-          <span className="chip-status-badge">{showAccidents ? 'ON' : 'OFF'}</span>
-        </button>
-        <button
-          type="button"
-          className={`map-toggle-chip ${showLegend ? 'active legend' : 'inactive'}`}
-          onClick={() => setShowLegend((p) => !p)}
-        >
-          <span className="chip-text">범례</span>
-          <span className="chip-status-badge">{showLegend ? 'ON' : 'OFF'}</span>
-        </button>
+      {pickMode && (
+        <div className="map-pick-hint" role="status">
+          <span className={`place-dot ${pickMode}`} />
+          지도를 눌러 {pickMode === 'origin' ? '출발지' : '도착지'}를 정하세요
+        </div>
+      )}
+
+      <div className="map-controls top">
+        <div className="layer-control">
+          <button
+            type="button"
+            className={`map-btn ${layersOpen ? 'active' : ''}`}
+            aria-label="지도 레이어"
+            aria-expanded={layersOpen}
+            title="지도 레이어"
+            onClick={() => setLayersOpen((v) => !v)}
+          >
+            <Icon name="layers" size={20} />
+          </button>
+          {layersOpen && (
+            <div className="popover layer-popover">
+              <p className="popover-title">지도에 표시</p>
+              {layerItems.map((item) => (
+                <label key={item.key} className="layer-row">
+                  <span className="layer-swatch" style={{ background: item.color }} />
+                  <span className="layer-label">{item.label}</span>
+                  <span className="layer-count">{item.count}</span>
+                  <input type="checkbox" className="switch" checked={item.on} onChange={item.toggle} />
+                </label>
+              ))}
+              <div className="menu-divider" />
+              <p className="popover-title">경로</p>
+              <div className="legend-row"><span className="legend-line" style={{ background: COLORS.route }} />선택한 경로</div>
+              <div className="legend-row"><span className="legend-line" style={{ background: COLORS.routeCaution }} />점검 미달 보호구역 구간</div>
+              <div className="legend-row"><span className="legend-line" style={{ background: COLORS.routeDanger }} />사고다발지역 구간</div>
+              <div className="legend-row"><span className="legend-line dashed" />다른 경로 (누르면 전환)</div>
+              <div className="legend-row"><span className="legend-pin accident">1</span>사고다발지역</div>
+              <div className="legend-row"><span className="legend-pin zone">2</span>점검 미달 보호구역</div>
+            </div>
+          )}
+        </div>
+        {routePath?.length > 0 && (
+          <button type="button" className="map-btn" aria-label="경로 전체 보기" title="경로 전체 보기" onClick={() => engine?.fitRoute()}>
+            <Icon name="fit" size={20} />
+          </button>
+        )}
       </div>
 
-      {showLegend && (
-        <div className="map-legend">
-          <div className="legend-header">
-            <div className="legend-title">지도 범례</div>
-            <button type="button" className="legend-close-btn" onClick={() => setShowLegend(false)}>
-              X
-            </button>
-          </div>
-          <div className="legend-items">
-            <div className="legend-item">
-              <span className="legend-color" style={{ background: '#38bdf8' }} />
-              <span>기본 보행 경로</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-color" style={{ background: '#10b981' }} />
-              <span>위험 회피 경로</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-color" style={{ background: '#f43f5e' }} />
-              <span>경로 위험 구역</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-color" style={{ background: '#10b981', borderRadius: '4px' }} />
-              <span>어린이보호구역 ({childZonesCount})</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-color" style={{ background: '#f59e0b', borderRadius: '4px' }} />
-              <span>노인보호구역 ({elderZonesCount})</span>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="map-controls bottom zoom-group">
+        <button type="button" className="map-btn" aria-label="확대" onClick={() => engine?.zoomIn()}>
+          <Icon name="plus" size={20} />
+        </button>
+        <button type="button" className="map-btn" aria-label="축소" onClick={() => engine?.zoomOut()}>
+          <Icon name="minus" size={20} />
+        </button>
+      </div>
     </section>
   );
 }
