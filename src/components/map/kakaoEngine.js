@@ -10,7 +10,10 @@ import {
   zoneHtml,
   spotLatLng,
   zoneLatLng,
+  OUTSIDE_RING,
+  OUTSIDE_STYLE,
 } from './mapShared';
+import { CHEONAN_BOUNDARY } from '../../data/cheonanBoundary';
 
 const MIN_LEVEL = 1;
 const MAX_LEVEL = 14;
@@ -109,6 +112,26 @@ export function createKakaoEngine(container, center) {
     }, 0);
   };
   maps.event.addListener(map, 'click', onMapClick);
+
+  // 천안 밖은 어둡게, 천안 경계는 점선으로
+  const outside = new maps.Polygon({
+    path: [OUTSIDE_RING.map(toLatLng), CHEONAN_BOUNDARY.map(toLatLng)],
+    strokeWeight: 0,
+    fillColor: OUTSIDE_STYLE.fill,
+    fillOpacity: OUTSIDE_STYLE.fillOpacity,
+    zIndex: 0,
+  });
+  outside.setMap(map);
+  maps.event.addListener(outside, 'click', (mouseEvent) => emitClick(mouseEvent.latLng));
+  const boundaryLine = new maps.Polyline({
+    path: CHEONAN_BOUNDARY.map(toLatLng),
+    strokeWeight: 2,
+    strokeColor: OUTSIDE_STYLE.line,
+    strokeOpacity: OUTSIDE_STYLE.lineOpacity,
+    strokeStyle: 'shortdash',
+    zIndex: 1,
+  });
+  boundaryLine.setMap(map);
 
   function fitPath(path) {
     const bounds = new maps.LatLngBounds();
@@ -311,6 +334,8 @@ export function createKakaoEngine(container, center) {
       clickListeners.clear();
       [layers.spots, layers.zones, layers.hazards, layers.route, layers.endpoints].forEach(clear);
       layers.other?.setMap(null);
+      outside.setMap(null);
+      boundaryLine.setMap(null);
       closePopup();
       tooltip.setMap(null);
       container.innerHTML = '';

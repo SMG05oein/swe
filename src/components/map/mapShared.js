@@ -11,6 +11,15 @@ export const COLORS = {
   elderZone: '#8e4ec6',
 };
 
+// 서비스 지역(천안) 밖을 덮는 사각형. 천안 경계를 구멍으로 뚫어 천안만 원래 색으로 보이게 함
+export const OUTSIDE_RING = [
+  [45, 120],
+  [45, 135],
+  [30, 135],
+  [30, 120],
+];
+export const OUTSIDE_STYLE = { fill: '#1e293b', fillOpacity: 0.28, line: '#334155', lineOpacity: 0.7 };
+
 // routeSegments의 level(0 보통 / 1 주의 / 2 위험) 순서
 export const SEGMENT_COLORS = [COLORS.route, COLORS.routeCaution, COLORS.routeDanger];
 

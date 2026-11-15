@@ -10,7 +10,10 @@ import {
   zoneHtml,
   spotLatLng,
   zoneLatLng,
+  OUTSIDE_RING,
+  OUTSIDE_STYLE,
 } from './mapShared';
+import { CHEONAN_BOUNDARY } from '../../data/cheonanBoundary';
 
 function fitOptions() {
   const p = fitPadding();
@@ -28,6 +31,21 @@ export function createLeafletEngine(container, center) {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
+  }).addTo(map);
+
+  // 천안 밖은 어둡게, 천안 경계는 점선으로 (클릭은 지도로 그대로 전달)
+  L.polygon([OUTSIDE_RING, CHEONAN_BOUNDARY], {
+    stroke: false,
+    fillColor: OUTSIDE_STYLE.fill,
+    fillOpacity: OUTSIDE_STYLE.fillOpacity,
+    interactive: false,
+  }).addTo(map);
+  L.polyline(CHEONAN_BOUNDARY, {
+    color: OUTSIDE_STYLE.line,
+    opacity: OUTSIDE_STYLE.lineOpacity,
+    weight: 2,
+    dashArray: '6 5',
+    interactive: false,
   }).addTo(map);
 
   const sizeTimer = setTimeout(() => map.invalidateSize(), 100);

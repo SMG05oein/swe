@@ -204,6 +204,157 @@
   font-size: var(--fs-lg);
 }
 
+/* 그림 애니메이션. 단계가 바뀌면 그림이 새로 그려지므로 들어올 때마다 다시 재생됨
+   transform·opacity·선 길이만 움직여서 가볍고, 한 번 재생 후 멈춤 */
+.gd-app .ob-art .ob-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: ob-draw 0.6s ease-out both;
+}
+
+.gd-app .ob-art .ob-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ob-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.gd-app .ob-art .ob-fade {
+  animation: ob-fade 0.5s ease both;
+}
+
+/* 1단계: 바탕 → 출발점 → 선이 그려짐 → 도착점 → 체크 아이콘 */
+.gd-app .ob-art .ob-intro-bg {
+  animation-duration: 0.5s;
+}
+.gd-app .ob-art .ob-intro-start {
+  animation-delay: 0.15s;
+}
+.gd-app .ob-art .ob-intro-line {
+  animation-delay: 0.3s;
+  animation-duration: 0.8s;
+  animation-timing-function: ease-in-out;
+}
+.gd-app .ob-art .ob-intro-end {
+  animation-delay: 1.05s;
+}
+.gd-app .ob-art .ob-intro-icon {
+  animation-delay: 1.25s;
+  animation-duration: 0.5s;
+}
+.gd-app .ob-art .ob-intro-shield {
+  animation-delay: 1.45s;
+  animation-duration: 0.45s;
+}
+.gd-app .ob-art .ob-intro-check {
+  animation-delay: 1.85s;
+  animation-duration: 0.3s;
+}
+
+/* 2단계: 출발·도착 표시 → 출발에서 도착까지 경로가 이어서 그려짐 (구간별 시간은 JSX) */
+.gd-app .ob-art .ob-route-zone {
+  animation-delay: 0.1s;
+}
+.gd-app .ob-art .ob-route-start {
+  animation-delay: 0.15s;
+}
+.gd-app .ob-art .ob-route-end {
+  animation-delay: 0.4s;
+}
+.gd-app .ob-art .ob-route-seg {
+  animation-timing-function: linear;
+}
+
+.gd-app .ob-art .ob-rise {
+  animation: ob-rise 0.4s ease-out both;
+}
+
+/* 왼쪽에서 오른쪽으로 길어짐 */
+.gd-app .ob-art .ob-grow {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: ob-grow 0.4s ease-out both;
+}
+
+.gd-app .ob-art .ob-drop {
+  animation: ob-drop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 퍼지는 원은 재생이 끝나면 사라진 채로 남음 (동작 줄이기에서는 아예 안 보임) */
+.gd-app .ob-art .ob-ripple {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ob-ripple 0.6s ease-out forwards;
+}
+
+/* 3단계: 카드 → 번호 핀(누름) → 제목 → 위험도 막대 → 점검 항목 한 줄씩 (항목 시간은 JSX) */
+.gd-app .ob-art .ob-hazard-pin {
+  animation-delay: 0.3s;
+}
+.gd-app .ob-art .ob-ripple {
+  animation-delay: 0.5s;
+}
+.gd-app .ob-art .ob-hazard-gauge {
+  animation-delay: 0.85s;
+  animation-duration: 0.3s;
+}
+.gd-app .ob-art .ob-hazard-gauge-fill {
+  animation-delay: 0.95s;
+  animation-duration: 0.45s;
+}
+.gd-app .ob-art .ob-hazard-marker {
+  animation-delay: 1.15s;
+}
+
+@keyframes ob-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes ob-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes ob-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes ob-ripple {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+/* 시작 순간(선 길이 0)에는 둥근 끝이 점처럼 보여서 잠깐 숨김 */
+@keyframes ob-draw {
+  from {
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+}
+
+@keyframes ob-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
 @keyframes ob-fade {
   from {
     opacity: 0;
@@ -227,8 +378,9 @@
 @media (prefers-reduced-motion: reduce) {
   .gd-app .ob-backdrop,
   .gd-app .ob-content.slide-next,
-  .gd-app .ob-content.slide-prev {
-    animation: none;
+  .gd-app .ob-content.slide-prev,
+  .gd-app .ob-art * {
+    animation: none !important;
   }
 }
 
