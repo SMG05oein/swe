@@ -115,16 +115,26 @@ export function findHazardsNearRoute({
   return hazards;
 }
 
-/** Rough perpendicular offset waypoint to request an avoiding alternative route */
-export function avoidWaypointFromHazards(origin, destination, hazards) {
-  if (!hazards?.length) return null;
+/**
+ * Perpendicular offset waypoints (left/right of OD axis) around the nearest hazard.
+ * Used to request OSRM alternatives that may avoid the hotspot corridor.
+ * @returns {{lat:number,lng:number}[]}
+ */
+export function avoidWaypointsFromHazards(origin, destination, hazards, offset = 0.004) {
+  if (!hazards?.length) return [];
   const worst = hazards[0];
   const dLat = destination.lat - origin.lat;
   const dLng = destination.lng - origin.lng;
   const len = Math.sqrt(dLat * dLat + dLng * dLng) || 1;
-  const offset = 0.004;
-  return {
-    lat: worst.lat + (-dLng / len) * offset,
-    lng: worst.lng + (dLat / len) * offset,
-  };
+  const nLat = -dLng / len;
+  const nLng = dLat / len;
+  return [
+    { lat: worst.lat + nLat * offset, lng: worst.lng + nLng * offset },
+    { lat: worst.lat - nLat * offset, lng: worst.lng - nLng * offset },
+  ];
+}
+
+/** @deprecated Prefer avoidWaypointsFromHazards (both sides). */
+export function avoidWaypointFromHazards(origin, destination, hazards) {
+  return avoidWaypointsFromHazards(origin, destination, hazards)[0] || null;
 }

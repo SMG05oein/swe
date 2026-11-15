@@ -130,10 +130,21 @@ docker exec -it cheonan_safety_ollama ollama list
 Vite(`vite.config.js`)가 아래 경로를 외부 API로 프록시합니다.
 
 - `/api/datagokr`, `/api/koroad`, `/api/koroad_portal` — 공공데이터·도로교통공단
-- `/api/osrm` — 보행 경로 (경로 기하)
+- `/api/osrm` — 보행 경로 (경로 기하). OSRM은 API 키가 없으며, 이 프록시는 브라우저 CORS 우회용입니다.
 - `/api/nominatim` — 장소 검색·역지오코딩
 
 보행 예상 시간은 OSRM 소요시간 대신 **보행 속도(어린이·노인)** 기준으로 재산정합니다.
+
+## 경로·통합 흐름 (Part 4)
+
+보호자 화면은 `RouteApiClient` → OSRM(`/api/osrm`)으로 `Route` 객체를 받고, `NavigationManager`가 주경로·우회·경로 주변 위험 분석을 한 흐름으로 실행한 뒤 `Main` UI에 전달합니다.
+
+```
+RouteInput → NavigationManager.runPrimaryRoute / runAvoidRoute
+  → RouteApiClient.getRoute (OSRM)
+  → hazards / grade (domain)
+  → MapView · RouteCompare · HazardList
+```
 
 ## 프로젝트 구조 (요약)
 
@@ -141,6 +152,7 @@ Vite(`vite.config.js`)가 아래 경로를 외부 API로 프록시합니다.
 src/
   pages/          Main(보호자), Admin(관리자)
   components/     지도, 경로입력, 위험목록, 상세모달 등
+  services/       RouteApiClient, NavigationManager (경로·통합)
   domain/         체크리스트·위험구역·경로등급 순수 로직
   api/            공공데이터·경로·지오코딩·AI·관리자 클라이언트
   data/           지역 프리셋, 신호등, 샘플 사고 데이터

@@ -18,14 +18,17 @@ import {
 } from '../api/trafficApi';
 import { getApiKeys, saveApiKeys } from '../api/apiClient';
 import { fetchFacilities, getSampleFacilities } from '../api/facilitiesApi';
-import { fetchPedestrianRoute } from '../api/routeApi';
 import { reverseGeocode } from '../api/geocodeApi';
 import { fetchChecklistConfig, fetchCachedPublicData } from '../api/adminApi';
 import { DEFAULT_CHECKLIST_CONFIG } from '../domain/checklist';
+import { gradeRoute, formatDistance, formatDuration } from '../domain/routeGrade';
 import { findHazardsNearRoute, avoidWaypointFromHazards } from '../domain/hazards';
 import { gradeRoute } from '../domain/routeGrade';
 import { segmentRouteByHazards } from '../domain/routeSegments';
 import { getSampleAccidents } from '../data/sampleAccidents';
+import NavigationManager from '../services/NavigationManager';
+
+const navigationManager = new NavigationManager();
 
 const SHEET_STATES = ['peek', 'half', 'full'];
 
@@ -203,16 +206,14 @@ export default function Main() {
     [facilities]
   );
 
-  const analyzePath = useCallback(
-    (path) =>
-      findHazardsNearRoute({
-        path,
-        accidents,
-        protectionZones: allProtectionZones,
-        facilities,
-        config: checklistConfig,
-        vulnerableType,
-      }),
+  const routeContext = useMemo(
+    () => ({
+      accidents,
+      protectionZones: allProtectionZones,
+      facilities,
+      config: checklistConfig,
+      vulnerableType,
+    }),
     [accidents, allProtectionZones, facilities, checklistConfig, vulnerableType]
   );
 
@@ -231,8 +232,10 @@ export default function Main() {
     setErrorBanner('');
     resetSelection();
     try {
-      const result = await fetchPedestrianRoute([origin, destination], {
-        vulnerableType,
+      const { route: result, hazards: found } = await navigationManager.runPrimaryRoute({
+        origin,
+        destination,
+        ...routeContext,
       });
       setRoute(result);
       setHazards(analyzePath(result.path));
@@ -252,6 +255,22 @@ export default function Main() {
     setAltLoading(true);
     setErrorBanner('');
     try {
+      const outcome = await navigationManager.runAvoidRoute({
+        origin,
+        destination,
+        hazards,
+        ...routeContext,
+      });
+      if (outcome.skipped) {
+        setErrorBanner(outcome.reason);
+        setAltRoute(null);
+        setAltHazards([]);
+        return;
+      }
+      setAltRoute(outcome.route);
+      setAltHazards(outcome.hazards);
+      setActiveRouteKey('alt');
+      setSelectedHazard(outcome.hazards[0] || null);
       const via = avoidWaypointFromHazards(origin, destination, hazards);
       const waypoints = via ? [origin, via, destination] : [origin, destination];
       const result = await fetchPedestrianRoute(waypoints, { vulnerableType });
