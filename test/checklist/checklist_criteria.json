@@ -1,0 +1,17 @@
+{
+  "version": "0.1",
+  "basis": "어린이ㆍ노인 및 장애인 보호구역의 지정 및 관리에 관한 규칙",
+  "radius_m": 300,
+  "items": [
+    { "id": "signal", "name": "신호기", "facility": "traffic_light", "rule": "min_count", "value": 1, "score": 20, "basis": "규칙 제6조 제1항" },
+    { "id": "speed_bump", "name": "과속방지시설", "facility": "speed_bump", "rule": "min_count", "value": 1, "score": 20, "basis": "규칙 제7조 제3항 제3호" },
+    { "id": "speed_limit", "name": "제한속도", "facility": "camera", "rule": "max_speed", "value": 30, "score": 20, "basis": "규칙 제9조 제1항 제3호" },
+    { "id": "no_street_parking", "name": "노상주차장 없음", "facility": "street_parking", "rule": "max_count", "value": 0, "score": 20, "basis": "규칙 제8조 제1항" },
+    { "id": "camera", "name": "무인단속카메라", "facility": "camera", "rule": "min_count", "value": 1, "score": 20, "basis": "규칙 제11조의2 (설치 근거: 도로교통법 제12조 제4항)" }
+  ],
+  "grades": { "safe": 70, "caution": 40 },
+  "hotspot_penalty": { "once": -20, "repeated": -30 },
+  "hotspot_overlap_m": 300,
+  "min_grade_on_hotspot": "caution",
+  "low_confidence_below": 50
+}
