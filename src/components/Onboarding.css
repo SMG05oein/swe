@@ -1,0 +1,402 @@
+/* 앱 소개 — 토스식 큰 제목 + 그림 + 하단 버튼. 모바일은 전체 화면, 데스크톱은 가운데 카드 */
+
+.gd-app .ob-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+  animation: ob-fade 0.2s ease;
+}
+
+.gd-app .ob-sheet {
+  width: 440px;
+  height: min(720px, calc(100dvh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--gd-surface);
+  border-radius: 24px;
+  box-shadow: var(--gd-shadow-md);
+  overflow: hidden;
+}
+
+.gd-app .ob-header {
+  height: 56px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.gd-app .ob-header-space {
+  width: 36px;
+}
+
+.gd-app .ob-skip {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  color: var(--gd-text-3);
+}
+
+.gd-app .ob-skip:hover {
+  background: var(--gd-surface-2);
+  color: var(--gd-text-2);
+}
+
+.gd-app .ob-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 28px 0;
+  overflow-y: auto;
+}
+
+.gd-app .ob-content.slide-next {
+  animation: ob-in-right 0.28s ease;
+}
+
+.gd-app .ob-content.slide-prev {
+  animation: ob-in-left 0.28s ease;
+}
+
+.gd-app .ob-title {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.38;
+  letter-spacing: -0.02em;
+  white-space: pre-line;
+  color: var(--gd-text);
+}
+
+.gd-app .ob-body {
+  margin-top: 12px;
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  color: var(--gd-text-2);
+}
+
+.gd-app .ob-art-wrap {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+
+.gd-app .ob-art {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+}
+
+.gd-app .ob-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.gd-app .ob-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1.5px solid var(--gd-border);
+  background: var(--gd-surface);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.gd-app .ob-choice:hover {
+  border-color: var(--gd-border-strong);
+}
+
+.gd-app .ob-choice.selected {
+  border-color: var(--gd-accent);
+  background: var(--gd-accent-soft);
+}
+
+.gd-app .ob-choice-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--gd-surface-2);
+  color: var(--gd-text);
+}
+
+.gd-app .ob-choice.selected .ob-choice-icon {
+  background: var(--gd-accent);
+  color: #fff;
+}
+
+.gd-app .ob-choice-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gd-app .ob-choice-label {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.gd-app .ob-choice-desc {
+  font-size: var(--fs-sm);
+  color: var(--gd-text-2);
+}
+
+.gd-app .ob-radio {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--gd-border-strong);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.gd-app .ob-choice.selected .ob-radio {
+  background: var(--gd-accent);
+  border-color: var(--gd-accent);
+}
+
+.gd-app .ob-footer {
+  flex-shrink: 0;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.gd-app .ob-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.gd-app .ob-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gd-border-strong);
+  transition: width 0.2s, background 0.2s;
+}
+
+.gd-app .ob-dots span.active {
+  width: 18px;
+  background: var(--gd-text);
+}
+
+.gd-app .ob-next {
+  height: 54px;
+  border-radius: 14px;
+  font-size: var(--fs-lg);
+}
+
+/* 그림 애니메이션. 단계가 바뀌면 그림이 새로 그려지므로 들어올 때마다 다시 재생됨
+   transform·opacity·선 길이만 움직여서 가볍고, 한 번 재생 후 멈춤 */
+.gd-app .ob-art .ob-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: ob-draw 0.6s ease-out both;
+}
+
+.gd-app .ob-art .ob-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ob-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.gd-app .ob-art .ob-fade {
+  animation: ob-fade 0.5s ease both;
+}
+
+/* 1단계: 바탕 → 출발점 → 선이 그려짐 → 도착점 → 체크 아이콘 */
+.gd-app .ob-art .ob-intro-bg {
+  animation-duration: 0.5s;
+}
+.gd-app .ob-art .ob-intro-start {
+  animation-delay: 0.15s;
+}
+.gd-app .ob-art .ob-intro-line {
+  animation-delay: 0.3s;
+  animation-duration: 0.8s;
+  animation-timing-function: ease-in-out;
+}
+.gd-app .ob-art .ob-intro-end {
+  animation-delay: 1.05s;
+}
+.gd-app .ob-art .ob-intro-icon {
+  animation-delay: 1.25s;
+  animation-duration: 0.5s;
+}
+.gd-app .ob-art .ob-intro-shield {
+  animation-delay: 1.45s;
+  animation-duration: 0.45s;
+}
+.gd-app .ob-art .ob-intro-check {
+  animation-delay: 1.85s;
+  animation-duration: 0.3s;
+}
+
+/* 2단계: 출발·도착 표시 → 출발에서 도착까지 경로가 이어서 그려짐 (구간별 시간은 JSX) */
+.gd-app .ob-art .ob-route-zone {
+  animation-delay: 0.1s;
+}
+.gd-app .ob-art .ob-route-start {
+  animation-delay: 0.15s;
+}
+.gd-app .ob-art .ob-route-end {
+  animation-delay: 0.4s;
+}
+.gd-app .ob-art .ob-route-seg {
+  animation-timing-function: linear;
+}
+
+.gd-app .ob-art .ob-rise {
+  animation: ob-rise 0.4s ease-out both;
+}
+
+/* 왼쪽에서 오른쪽으로 길어짐 */
+.gd-app .ob-art .ob-grow {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: ob-grow 0.4s ease-out both;
+}
+
+.gd-app .ob-art .ob-drop {
+  animation: ob-drop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 퍼지는 원은 재생이 끝나면 사라진 채로 남음 (동작 줄이기에서는 아예 안 보임) */
+.gd-app .ob-art .ob-ripple {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ob-ripple 0.6s ease-out forwards;
+}
+
+/* 3단계: 카드 → 번호 핀(누름) → 제목 → 위험도 막대 → 점검 항목 한 줄씩 (항목 시간은 JSX) */
+.gd-app .ob-art .ob-hazard-pin {
+  animation-delay: 0.3s;
+}
+.gd-app .ob-art .ob-ripple {
+  animation-delay: 0.5s;
+}
+.gd-app .ob-art .ob-hazard-gauge {
+  animation-delay: 0.85s;
+  animation-duration: 0.3s;
+}
+.gd-app .ob-art .ob-hazard-gauge-fill {
+  animation-delay: 0.95s;
+  animation-duration: 0.45s;
+}
+.gd-app .ob-art .ob-hazard-marker {
+  animation-delay: 1.15s;
+}
+
+@keyframes ob-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes ob-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes ob-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes ob-ripple {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+/* 시작 순간(선 길이 0)에는 둥근 끝이 점처럼 보여서 잠깐 숨김 */
+@keyframes ob-draw {
+  from {
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+}
+
+@keyframes ob-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes ob-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ob-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes ob-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-app .ob-backdrop,
+  .gd-app .ob-content.slide-next,
+  .gd-app .ob-content.slide-prev,
+  .gd-app .ob-art * {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .gd-app .ob-backdrop {
+    background: var(--gd-surface);
+  }
+
+  .gd-app .ob-sheet {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .gd-app .ob-content {
+    padding: 8px 24px 0;
+  }
+}

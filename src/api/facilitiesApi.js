@@ -171,6 +171,51 @@ function toPoints(items) {
     .filter((p) => !isNaN(p.lat) && !isNaN(p.lng));
 }
 
+// 브라우저 캐시 (전체 페이지 수집에 약 120회 호출 → 공공데이터포털 일일 한도 보호)
+const CACHE_PREFIX = `swe_facility_cache_v1_${CHEONAN_ORG_CD}_`;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const inFlight = new Map();
+
+function readCache(name) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + name);
+    if (!raw) return null;
+    const { savedAt, points } = JSON.parse(raw);
+    if (!Array.isArray(points) || Date.now() - savedAt > CACHE_TTL_MS) return null;
+    return points;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(name, points) {
+  try {
+    localStorage.setItem(
+      CACHE_PREFIX + name,
+      JSON.stringify({ savedAt: Date.now(), points })
+    );
+  } catch {
+    // 저장 공간 부족 시 캐시 없이 동작
+  }
+}
+
+// 캐시 우선 조회 + 동시 호출 중복 제거 (개발 모드 이중 실행 대응)
+function fetchPointsCached(name, endpoint, key) {
+  const cached = readCache(name);
+  if (cached) return Promise.resolve(cached);
+  if (inFlight.has(name)) return inFlight.get(name);
+
+  const promise = fetchAll(endpoint, key)
+    .then((items) => {
+      const points = toPoints(items);
+      if (points.length > 0) writeCache(name, points);
+      return points;
+    })
+    .finally(() => inFlight.delete(name));
+  inFlight.set(name, promise);
+  return promise;
+}
+
 // 전국어린이보호구역표준데이터 (천안시 4490000)
 export async function fetchChildProtectionZones() {
   const { dataGoKrKey } = getApiKeys();
@@ -282,8 +327,8 @@ export async function fetchFacilities() {
   }
 
   const [cctvRes, bumpRes, zoneRes, elderRes] = await Promise.allSettled([
-    fetchAll(ENDPOINTS.cctv, dataGoKrKey),
-    fetchAll(ENDPOINTS.speedBump, dataGoKrKey),
+    fetchPointsCached('cctv', ENDPOINTS.cctv, dataGoKrKey),
+    fetchPointsCached('speedBump', ENDPOINTS.speedBump, dataGoKrKey),
     fetchChildProtectionZones(),
     fetchElderProtectionZones(),
   ]);
@@ -293,14 +338,14 @@ export async function fetchFacilities() {
 
   const cctv =
     cctvRes.status === 'fulfilled'
-      ? toPoints(cctvRes.value)
+      ? cctvRes.value
       : (errors.push(`CCTV: ${cctvRes.reason?.message || '실패'}`),
         (usedSample = true),
         SAMPLE_CCTV);
 
   const speedBump =
     bumpRes.status === 'fulfilled'
-      ? toPoints(bumpRes.value)
+      ? bumpRes.value
       : (errors.push(`과속방지턱: ${bumpRes.reason?.message || '실패'}`),
         (usedSample = true),
         SAMPLE_SPEED_BUMPS);
