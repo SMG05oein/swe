@@ -21,8 +21,7 @@ import { fetchFacilities, getSampleFacilities } from '../api/facilitiesApi';
 import { reverseGeocode } from '../api/geocodeApi';
 import { fetchChecklistConfig, fetchCachedPublicData } from '../api/adminApi';
 import { DEFAULT_CHECKLIST_CONFIG } from '../domain/checklist';
-import { gradeRoute, formatDistance, formatDuration } from '../domain/routeGrade';
-import { findHazardsNearRoute, avoidWaypointFromHazards } from '../domain/hazards';
+import { gradeRoute } from '../domain/routeGrade';
 import { segmentRouteByHazards } from '../domain/routeSegments';
 import { getSampleAccidents } from '../data/sampleAccidents';
 import NavigationManager from '../services/NavigationManager';
@@ -237,7 +236,7 @@ export default function Main() {
         ...routeContext,
       });
       setRoute(result);
-      setHazards(analyzePath(result.path));
+      setHazards(found);
       setSheet('half');
     } catch (e) {
       setErrorBanner(e.message || '경로를 찾지 못했습니다.');
@@ -268,13 +267,6 @@ export default function Main() {
       }
       setAltRoute(outcome.route);
       setAltHazards(outcome.hazards);
-      setActiveRouteKey('alt');
-      setSelectedHazard(outcome.hazards[0] || null);
-      const via = avoidWaypointFromHazards(origin, destination, hazards);
-      const waypoints = via ? [origin, via, destination] : [origin, destination];
-      const result = await fetchPedestrianRoute(waypoints, { vulnerableType });
-      setAltRoute(result);
-      setAltHazards(analyzePath(result.path));
       setActiveRouteKey('alt');
       resetSelection();
     } catch (e) {
