@@ -1,6 +1,7 @@
 /**
- * Pedestrian routing via OSRM geometry + walking-speed ETA.
- * Public OSRM "foot" durations are often car-like; we recompute ETA from distance.
+ * Pedestrian routing via FOSSGIS OSRM foot graph + walking-speed ETA.
+ * Proxied as /api/osrm → routing.openstreetmap.de/routed-foot
+ * (router.project-osrm.org serves driving geometry even for /foot/)
  *
  * Route contract (Part 4 handoff object):
  * @typedef {Object} Route
@@ -20,6 +21,9 @@ const WALK_SPEED = {
   default: 1.25, // ~4.5 km/h
 };
 
+/** Reject backends that clearly returned a car-like ETA (km/h). */
+const MAX_FOOT_BACKEND_KMH = 12;
+
 function toOsrmCoords(points) {
   return points.map((p) => `${p.lng},${p.lat}`).join(';');
 }
@@ -27,6 +31,16 @@ function toOsrmCoords(points) {
 export function estimateWalkDuration(distanceMeters, vulnerableType = 'child') {
   const speed = WALK_SPEED[vulnerableType] || WALK_SPEED.default;
   return distanceMeters / speed;
+}
+
+function assertFootLikeBackend(distanceMeters, osrmDurationSec) {
+  if (!osrmDurationSec || osrmDurationSec <= 0 || !distanceMeters) return;
+  const kmh = (distanceMeters / osrmDurationSec) * 3.6;
+  if (kmh > MAX_FOOT_BACKEND_KMH) {
+    throw new Error(
+      '보행 경로 서버가 자동차 속도로 응답했습니다. 프록시 설정을 확인하세요.'
+    );
+  }
 }
 
 /**
@@ -55,6 +69,7 @@ export async function fetchPedestrianRoute(waypoints, options = {}) {
   const coordsLngLat = route.geometry?.coordinates || [];
   const path = coordsLngLat.map(([lng, lat]) => [lat, lng]);
   const distance = route.distance;
+  assertFootLikeBackend(distance, route.duration);
   const duration = estimateWalkDuration(distance, options.vulnerableType);
 
   return {

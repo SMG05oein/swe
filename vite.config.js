@@ -97,10 +97,15 @@ export default defineConfig({
         },
       },
       '/api/osrm': {
-        target: 'https://router.project-osrm.org',
+        // FOSSGIS foot graph — project-osrm.org ignores foot and returns driving geometry
+        target: 'https://routing.openstreetmap.de/routed-foot',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/osrm/, ''),
         secure: true,
+        headers: {
+          'User-Agent': 'CheonanWalkSafe/1.0 (local-dev)',
+          Accept: 'application/json',
+        },
       },
       '/api/nominatim': {
         target: 'https://nominatim.openstreetmap.org',

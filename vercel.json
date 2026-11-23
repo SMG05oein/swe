@@ -14,7 +14,7 @@
     },
     {
       "source": "/api/osrm/:path*",
-      "destination": "https://router.project-osrm.org/:path*"
+      "destination": "https://routing.openstreetmap.de/routed-foot/:path*"
     },
     {
       "source": "/api/nominatim/:path*",
