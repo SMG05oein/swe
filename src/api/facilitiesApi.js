@@ -387,8 +387,8 @@ export async function fetchFacilities() {
   }
 
   const [cctvRes, bumpRes, zoneRes, elderRes, cameraRes, parkingRes] = await Promise.allSettled([
-    fetchAll(ENDPOINTS.cctv, dataGoKrKey),
-    fetchAll(ENDPOINTS.speedBump, dataGoKrKey),
+    fetchPointsCached('cctv', ENDPOINTS.cctv, dataGoKrKey),
+    fetchPointsCached('speedBump', ENDPOINTS.speedBump, dataGoKrKey),
     fetchChildProtectionZones(),
     fetchElderProtectionZones(),
     fetchEnforcementCameras(),
