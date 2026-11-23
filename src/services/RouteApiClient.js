@@ -15,7 +15,7 @@ export default class RouteApiClient {
       return await fetchPedestrianRoute(waypoints, options);
     } catch (err) {
       const message = err?.message || '보행 경로를 조회하지 못했습니다.';
-      throw new Error(message);
+      throw new Error(message, { cause: err });
     }
   }
 }
